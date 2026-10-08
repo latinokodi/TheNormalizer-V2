@@ -392,6 +392,25 @@ def main() -> int:
             f"the settings and the button come to {stacked:.0f} px of column, which is what decides how "
             f"small the window can be",
         )
+        # The number fields are the width of their content, and the figure is asserted because the defect it
+        # catches is invisible in the markup: `flex: 0 1 9ch` *reads* like "nine characters" and behaves like
+        # "a starting point the flex algorithm grows from", so inside a full-width row a field holding `-6.0`
+        # rendered 169 px wide — 4.7 times the text — and three of them down the panel read as three empty
+        # bars rather than three numbers.
+        fields = page.script(
+            "return [...document.querySelectorAll('.number-field')].map(i => {"
+            "  const b = i.getBoundingClientRect();"
+            "  return {id: i.id, w: Math.round(b.width), text: i.value,"
+            "          need: Math.round(i.scrollWidth)};});"
+        )
+        check(
+            "each number field is the width of its digits and not of the row",
+            len(fields) == 3
+            and all(one["w"] <= 70 for one in fields)
+            and all(one["need"] <= one["w"] for one in fields),
+            " · ".join(f"#{one['id']} {one['w']}px for {one['text']!r}" for one in fields),
+        )
+
         check(
             "changing the level moves the limiter with it",
             page.script(

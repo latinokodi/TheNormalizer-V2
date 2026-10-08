@@ -627,8 +627,31 @@
   color: var(--phosphor-dim);
 }
 
+/*
+ * The number field: **seven characters wide, and that is a measurement rather than a guess.**
+ *
+ * ## Why it was 4.7 times too big
+ *
+ * It was `flex: 0 1 9ch`, which reads like "nine characters and no more" and does not behave like it: a
+ * `flex-basis` is a *starting point* that the flex algorithm then grows from the space available. Inside a
+ * `.setting__control` that is as wide as the panel, `9ch` (64.8 px at this face) became **169 px** — the field
+ * held `−6.0` in a box that could have held twenty characters, and three of them down the panel read as three
+ * empty bars rather than as three numbers.
+ *
+ * ## What it is now, measured
+ *
+ * Measured in the browser with the field's own font: one character is 7.2 px, `−6.0` is 28.8 px and `−24.0`
+ * is 36 px — the widest value either control can hold, since neither the level nor the leveler goes past two
+ * digits. `7ch` is 50.4 px with the 2 px border either side, which leaves the digits, a caret and room for a
+ * trailing keystroke while somebody is typing one.
+ *
+ * `flex: none` and an explicit `width`, because the two rules do different jobs and only one of them is
+ * honest here: `flex: none` stops the growth, and the `width` is what the box actually is. Setting only the
+ * basis is what produced the defect.
+ */
 .number-field {
-  flex: 0 1 9ch;
+  flex: none;
+  width: 7ch;
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   text-align: right;
