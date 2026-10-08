@@ -135,6 +135,54 @@ what every existing setting sounds like, so it is a decision rather than a fix. 
 measures any drive value against any material, and `scripts/loudness_profile.py` reports two files window by
 window.
 
+## 6b2. The objective, stated and measured
+
+**The objective is that the voices come out even.** Not "the file peaks at −6 dBFS" — that is the arithmetic —
+but that a quiet guest is as loud as a loud host, and that two recordings from one session sound equally loud
+beside each other. Two things have to hold for that, and both are measured rather than asserted.
+
+### Within one file
+
+Measured on the 13-minute interview, 820 seconds of sound, pauses dropped (`scripts/voice_evenness.py`):
+
+| | source | normalized | |
+|---|---|---|---|
+| quietest fifth | −41.0 LUFS | −24.0 LUFS | lifted **+17.0 dB** |
+| loudest fifth | −19.3 LUFS | −14.0 LUFS | lifted +5.3 dB |
+| **the spread between them** | **21.8 LU** | **10.0 LU** | closed by **11.8 dB** |
+| a typical passage's distance from the file's own average | 5.2 LU | **2.1 LU** | — |
+
+The last row is the one that describes what a listener hears. The spread can be driven by one outlier; the
+typical deviation cannot, and it fell by 60 %: passages that used to sit five loudness units from the file's
+average now sit two.
+
+### Across files
+
+Two recordings from one session, one 9 dB quieter than the other, each normalized on its own with the
+defaults:
+
+| file | source peak | source loudness | out peak | **out loudness** |
+|---|---|---|---|---|
+| as recorded | −4.60 dBFS | −27.1 LUFS | −6.30 dBFS | **−13.8 LUFS** |
+| the same, 9 dB quieter | −13.60 dBFS | −36.1 LUFS | −6.30 dBFS | **−13.8 LUFS** |
+
+Nine decibels apart going in, **identical to a tenth of a unit coming out**. That is the objective met, and it
+is met by the leveler: it brings each file's *body* to a comparable place, and the peak target is then applied
+to material of comparable density.
+
+### What this does not promise
+
+- **"Even" is not "identical", and evenness costs dynamics.** 11.8 of the 21.8 LU closed is just over half:
+  the quiet passages are seventeen decibels louder than they were, and they are still ten below the loud ones.
+  Closing the rest would mean levelling harder, which is what `Even out` is for — raising it flattens more, and
+  at some point a voice stops sounding like a person. The figure is a control rather than a constant for
+  exactly that reason.
+- **Reaching the peak and matching the loudness are two different jobs**, and the peak is the one the *Level*
+  field names. With `Even out` at 0 — the operator's chain alone — loudness across files is whatever the
+  material happens to give: a file with a wide crest factor lands quieter than a dense one at the same peak,
+  which is the whole reason a peak figure cannot be the objective. With the leveler on, the two agree, as the
+  table above shows.
+
 ## 6c. What the leveler does, and the one place it misses
 
 Measured on the 13-minute interview that raised the report — 820 seconds of sound, pauses dropped:

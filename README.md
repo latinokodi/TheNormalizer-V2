@@ -38,7 +38,17 @@ prints the whole story, and `-Doctor` reports every prerequisite without changin
 
 ## What it does
 
-Add media — several files at once, video or audio — choose the level, press **Normalize**.
+**Its objective is that the voices come out even** — a quiet guest as loud as a loud host, and two recordings
+from one session equally loud beside each other. That is a statement about *loudness*, which no peak figure
+can check: a file can hit its peak exactly with its voices twenty decibels apart. So the leveler is the part
+that does the work and the peak target is the arithmetic that follows it.
+
+Measured on a 13-minute interview: the spread between its quiet passages and its loud ones went from **21.8 LU
+to 10.0**, and a typical passage's distance from the file's own average from **5.2 LU to 2.1**. Two recordings
+from one session, one 9 dB quieter than the other, both came out at **−13.8 LUFS**. See `docs/TRUTH.md` §6b2.
+
+
+Add media — several files at once, video or audio — set the level and how even you want the voices, press **Normalize**.
 
 | Control | What it decides |
 |---|---|

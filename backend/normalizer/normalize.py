@@ -111,6 +111,17 @@ DEFAULT_CEILING_DBFS = -6.0
 
 #: How hard the leveler levels, and the figure that makes this product do what its name says.
 #:
+#: ## What this product is for
+#:
+#: **That the voices come out even.** A quiet guest as loud as a loud host, and two recordings from one session
+#: equally loud beside each other. That is a statement about *loudness*, and it is why the leveler is the part
+#: that does the work while the target is the arithmetic that follows it.
+#:
+#: Measured with `scripts/voice_evenness.py` on a 13-minute interview: the spread between its quiet passages and
+#: its loud ones went from 21.8 LU to 10.0, and a typical passage's distance from the file's own average from
+#: 5.2 LU to 2.1. Two recordings from one session, one 9 dB quieter than the other, both came out at
+#: −13.8 LUFS — identical to a tenth of a unit, where 9 dB had separated them.
+#:
 #: ## Why there is a leveler at all
 #:
 #: Because the operator's Track Fx does no dynamic-range reduction. Its `acompressor` is `ratio=1` —
