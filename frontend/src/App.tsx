@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import {
   api,
   desktop,
+  droppedPaths,
   failureReason,
   failureSentence,
   listen,
@@ -544,6 +545,57 @@ export function App() {
     add(chosen);
   }, [add]);
 
+  /* ---- A drop, from anywhere on the window -------------------------------------------------- */
+
+  /**
+   * Whether a drag is over the window right now, which is the only reason the drop veil exists.
+   *
+   * A drop is handled by the empty queue's own zone and by this window-wide veil, and the veil is what makes
+   * dropping work *while a queue is already running*: without it, the only drop target is a panel that is not
+   * on screen once there are rows, so an operator adding a file to a batch in flight would find that the
+   * gesture they used a moment ago has stopped working.
+   */
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    // A `dragenter`/`dragleave` pair arrives for every element a drag crosses, so the counter is what keeps
+    // the veil from flickering off each time the pointer moves between two children.
+    let depth = 0;
+    const over = (event: DragEvent) => {
+      event.preventDefault();
+      depth += 1;
+      setDragging(true);
+    };
+    const away = () => {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) {
+        setDragging(false);
+      }
+    };
+    const drop = async (event: DragEvent) => {
+      event.preventDefault();
+      depth = 0;
+      setDragging(false);
+      const files = Array.from(event.dataTransfer?.files ?? []);
+      if (files.length > 0) {
+        add(await droppedPaths(files));
+      }
+    };
+    // The window, and not a panel: a file dropped anywhere that is not a target makes Chromium *navigate* to
+    // it, which replaces this application with a video player. Dragging a video onto a window and getting the
+    // video is not a feature.
+    window.addEventListener("dragenter", over);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", away);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", over);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", away);
+      window.removeEventListener("drop", drop);
+    };
+  }, [add]);
+
   /* ---- Running -------------------------------------------------------------------------- */
 
   const startable = useMemo(
@@ -681,14 +733,23 @@ export function App() {
         <span className="titlebar__tagline">peak normalization · picture copied, sound rewritten</span>
         <span className="spacer" />
         {/*
-          One way to add files, and it is in the queue's own header.
+          **`Add files` lives here**, as a filled button at the right of the bar where every application puts
+          the verb that starts the work.
 
-          There were two: the same verb, the same dialog, and both of them saying "Add files" — one here
-          and one three inches below it in the panel that lists what you added. Two controls for one
-          action is a question the operator has to answer ("are these different?") with no way to find
-          out, and the answer is that they were identical. The queue's header is where it belongs: it
-          sits over the thing it adds to.
+          It has been in three places while this was worked out, and the history is the argument. First the
+          title bar *and* the queue's header, both saying `Add files`, which was two controls for one action
+          and a question the operator could not answer. Then the queue's header alone — and that was worse:
+          a 24 px ghost button inside a panel header is not where anybody looks for the way to put a file in,
+          and the report came back saying exactly that.
+
+          It is one button, it is filled, and it is the first thing in the bar's right-hand group. The empty
+          queue carries the same action at full size for the one moment the operator is certainly looking for
+          it; a second *reference* to one action in the place a reader's eye already is is not the same defect
+          as two buttons that both claim to be the way in.
         */}
+        <button type="button" className="btn btn--primary" onClick={() => void browse()}>
+          Add files…
+        </button>
         <button
           type="button"
           className="btn btn--ghost"
@@ -698,6 +759,13 @@ export function App() {
           Clear
         </button>
       </header>
+
+      {dragging ? (
+        <div className="drop-veil" role="status">
+          Drop the files to add them
+          <span className="drop-veil__hint">video or audio, several at once</span>
+        </div>
+      ) : null}
 
       <div className="app__body">
         {/*
@@ -779,6 +847,7 @@ export function App() {
             onReveal={showInExplorer}
             counts={counts}
             measuring={measuring > 0}
+            onDropPaths={(paths) => add(paths)}
           />
           <ReportPanel row={selectedRow} onReveal={showInExplorer} />
         </div>

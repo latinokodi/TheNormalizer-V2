@@ -40,7 +40,7 @@
  * operator who wants it larger. F11 is still offered as an explicit, reversible fullscreen.
  */
 
-const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, screen, shell, webUtils } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
@@ -559,6 +559,44 @@ ipcMain.handle("save-media", async (_event, suggested) => {
  * version of this that called `shell.openPath` on anything that existed would launch whatever executable
  * the page asked it to.
  */
+/**
+ * The paths behind a set of dropped files.
+ *
+ * ## Why this is in the main process and not in the page
+ *
+ * A drop hands the page `File` objects, and since Electron 32 a `File` no longer carries a `path` — the
+ * property was removed because a renderer that can read arbitrary paths by dropping a file on itself is a
+ * renderer that has been given a filesystem. `webUtils.getPathForFile` is the supported replacement, and it
+ * exists **only in the main process**, so the page hands the files over and gets paths back.
+ *
+ * The files are structured-cloned across IPC as blobs, which `getPathForFile` accepts; that is the mechanism
+ * Electron documents for exactly this. A file with no path — one from a drag out of a browser rather than
+ * from a disk — resolves to nothing and is skipped rather than becoming an empty string that fails later
+ * with a worse message.
+ *
+ * Nothing here trusts the caller: every value that is not a resolvable path is dropped, so the worst a
+ * compromised page can do with this channel is ask what the paths of files it already holds are.
+ */
+ipcMain.handle("paths-for-files", (_event, files) => {
+  if (!Array.isArray(files)) {
+    return { ok: false, error: "a drop has to be a list of files" };
+  }
+  const paths = [];
+  for (const file of files) {
+    try {
+      const found = webUtils.getPathForFile(file);
+      if (typeof found === "string" && found.length > 0) {
+        paths.push(found);
+      }
+    } catch (trouble) {
+      // A file with no path behind it, which a drag from another application produces. Skipped rather than
+      // reported: the operator dropped something this program cannot open, and the queue will not gain a
+      // row for it, which is the same thing that happens when a dialog is cancelled.
+    }
+  }
+  return { ok: true, paths };
+});
+
 ipcMain.handle("reveal", async (_event, target) => {
   if (typeof target !== "string" || target.length === 0) {
     return { ok: false, error: "no path was given" };

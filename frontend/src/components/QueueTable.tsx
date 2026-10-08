@@ -23,6 +23,7 @@
  * dot is a row that lies to him, so the pill carries the word and the colour is the second signal.
  */
 
+import { EmptyQueue } from "./EmptyQueue";
 import type { QueueRow, RowStage } from "../state/queue";
 import { level } from "../lib/format";
 
@@ -52,6 +53,8 @@ interface Props {
   readonly onSelect: (key: number) => void;
   readonly onRemove: (key: number) => void;
   readonly onAdd: () => void;
+  /** Paths handed over by a drop anywhere on the window. See `EmptyQueue`. */
+  readonly onDropPaths: (paths: readonly string[]) => void;
   readonly onReveal: (path: string) => void;
   readonly counts: Record<RowStage, number>;
   readonly measuring: boolean;
@@ -63,6 +66,7 @@ export function QueueTable({
   onSelect,
   onRemove,
   onAdd,
+  onDropPaths,
   onReveal,
   counts,
   measuring,
@@ -85,28 +89,22 @@ export function QueueTable({
         <span className={counts.failed > 0 ? "zone__note zone__note--caution" : "zone__note"}>
           {note}
         </span>
+        {/*
+          The spacer and nothing else: `Add files` moved to the title bar, because it is the one action on
+          this screen and a 24 px ghost button in a panel header is not where an operator looks for the way
+          to put a file in. The empty state carries the same action at full size, and this is the third
+          place it is reachable from — the menu-free window has no other verb.
+        */}
         <span className="spacer" />
-        <button type="button" className="btn btn--small" onClick={onAdd}>
-          Add files
-        </button>
       </div>
 
       {rows.length === 0 ? (
-        <div className="queue__empty">
-          <p>
-            <strong>Nothing queued.</strong> This normalizes video and audio files to a peak level you
-            choose.
-          </p>
-          <p>
-            The picture is stream-copied, so a video costs one audio encode rather than a re-encode, and
-            only the sound is rewritten. Each normalized copy is written beside its source with{" "}
-            <span className="figures"> - normalized</span> in the name — your originals are never touched.
-          </p>
-          <p>
-            Press <strong>Add files</strong>, or drop a folder's worth in at once: the dialog takes
-            several.
-          </p>
-        </div>
+        <EmptyQueue
+          rows={rows}
+          measuring={measuring}
+          onAdd={onAdd}
+          onDropPaths={onDropPaths}
+        />
       ) : (
         <div className="queue">
           <table className="queue__table">

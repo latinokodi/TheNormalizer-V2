@@ -1,7 +1,7 @@
 /**
  * The bridge between the page and the window.
  *
- * Six functions, and that is the whole surface. Everything else the page needs is HTTP to the engine on
+ * Seven functions, and that is the whole surface. Everything else the page needs is HTTP to the engine on
  * loopback, which needs no bridge — so the page holds no filesystem, no process and no node handle it
  * could be tricked into using, and the preload stays small enough to read in one go.
  *
@@ -35,6 +35,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("save-media", typeof suggested === "string" ? suggested : ""),
 
   /** Show a file in Explorer. */
+  /**
+   * The paths behind a set of dropped files, or an empty list.
+   *
+   * The page cannot read a `File`'s path — Electron removed that property in 32 — so it hands the dropped
+   * files over and the main process resolves them. Anything unresolvable is skipped there rather than
+   * returned as an empty string.
+   */
+  pathsForFiles: (files) =>
+    ipcRenderer.invoke("paths-for-files", Array.isArray(files) ? files : []),
+
   reveal: (target) => ipcRenderer.invoke("reveal", target),
 
   /** Fullscreen, which the window owns because it is the window's state and not the page's. */

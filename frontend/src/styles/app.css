@@ -574,7 +574,29 @@
   color: var(--caution);
 }
 
-.queue__empty {
+/*
+ * The empty queue: the one screen that has to teach the operator what to do.
+ *
+ * It is a **dashed outline** because that is the shape of a drop target, and every operator has used one.
+ * The button inside it is the same action as the title bar's, at the size the eye lands on when the screen
+ * is otherwise empty — the report that sent this back said the button was not visible or recognizable where
+ * it was, which was a 24 px ghost button in a panel header.
+ *
+ * `justify-content: center` because an empty screen with its only instruction pinned to the top corner reads
+ * as a page that failed to load; the middle of the space is where a person looks.
+ */
+/*
+ * The plain empty message, which two panels carry: the queue with nothing in it, and the report with no file
+ * selected.
+ *
+ * **It is deliberately unstyled beyond type.** It is a sentence in a space, and a border around a sentence is
+ * a box that says nothing. The one place a border means something is the queue, because that space is a drop
+ * target — see the modifier below, which is why this rule and that one are two rules and not one.
+ *
+ * That distinction is not a nicety: the first version of this put the dashed outline here, and it appeared
+ * around the report's "nothing selected" as well, which made two different things look like two drop zones.
+ */
+.empty-state {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -582,6 +604,93 @@
   max-width: 82ch;
   font-size: var(--text-sm);
   line-height: var(--leading-loose);
+  color: var(--phosphor-dim);
+}
+
+/*
+ * The queue with nothing in it: the one screen that has to teach the operator what to do.
+ *
+ * The **dashed outline** is the shape of a drop target, and every operator has used one. The button inside it
+ * is the same action as the title bar's, at the size the eye lands on when the screen is otherwise empty —
+ * the report that sent this back said the button was not visible or recognizable where it was, which was a
+ * 24 px ghost button in a panel header.
+ *
+ * `justify-content: center` because an empty screen with its only instruction pinned to the top corner reads
+ * as a page that failed to load; the middle of the space is where a person looks.
+ */
+.empty-state--drop {
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-5);
+  height: 100%;
+  min-height: 220px;
+  max-width: none;
+  margin: var(--space-5);
+  padding: var(--space-8) var(--space-7);
+  border: var(--hairline) dashed var(--rule-edge);
+  background: var(--substrate-100);
+  color: var(--phosphor-dim);
+}
+
+/* The one action, at the size that makes it the thing the eye lands on. */
+.empty-state__add {
+  height: 44px;
+  min-width: 190px;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.empty-state__how {
+  max-width: 54ch;
+  font-size: var(--text-sm);
+  color: var(--phosphor);
+}
+
+.empty-state__progress {
+  /* The figures an operator waits on, in the data face because they are numbers. */
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  color: var(--select);
+}
+
+.empty-state__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 74ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-loose);
+  color: var(--phosphor-dim);
+}
+
+/*
+ * The veil a drag puts over the window.
+ *
+ * It exists so that a file can be dropped **anywhere**, including while a queue is already running — the
+ * empty state's own zone is not on screen once there are rows, so without this the gesture would work once
+ * and then stop. `pointer-events: none` because the veil covers the window and the drop has to reach the
+ * listeners on `window` rather than being eaten by a full-screen element.
+ */
+.drop-veil {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  z-index: 10;
+  pointer-events: none;
+  background: var(--scrim);
+  border: 2px dashed var(--select);
+  color: var(--phosphor-bright);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.drop-veil__hint {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
   color: var(--phosphor-dim);
 }
 

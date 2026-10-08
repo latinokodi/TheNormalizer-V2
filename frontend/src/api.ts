@@ -540,6 +540,18 @@ export interface ElectronBridge {
   readonly openMedia?: (title: string, startIn?: string) => Promise<readonly string[]>;
   readonly saveMedia?: (suggested: string) => Promise<string | null>;
   readonly reveal?: (target: string) => Promise<{ readonly ok: boolean; readonly error?: string }>;
+  /**
+   * The paths behind a set of dropped files.
+   *
+   * The page cannot read a `File`'s path — Electron removed that property in 32, because a renderer that can
+   * read arbitrary paths by having a file dropped on it has been given a filesystem — so a drop hands the
+   * files over and the main process resolves them with `webUtils.getPathForFile`. A file with no path behind
+   * it, which is what a drag out of another application produces, is skipped there rather than returned as an
+   * empty string, so the caller never has to filter for one.
+   */
+  readonly pathsForFiles?: (
+    files: readonly File[],
+  ) => Promise<{ readonly ok: boolean; readonly paths?: readonly string[]; readonly error?: string }>;
   readonly toggleFullscreen?: () => Promise<boolean>;
   readonly isFullscreen?: () => Promise<boolean>;
   readonly backendUrl?: () => Promise<string>;
@@ -566,6 +578,19 @@ export const desktop: ElectronBridge =
 /** Ask for media. An empty list when the operator cancels, which is a decision and not a fault. */
 export async function openMedia(title: string, startIn = ""): Promise<readonly string[]> {
   return (await desktop.openMedia?.(title, startIn)) ?? [];
+}
+
+/**
+ * The paths behind dropped files. An empty list in a browser, and an empty list for a drag this program
+ * cannot open.
+ *
+ * The page cannot read a `File`'s path, so this crosses into the main process. Written as a helper beside
+ * `openMedia` because a drop and a dialog are the same thing to everything downstream: both produce a list of
+ * paths, and only one of them is worth a status.
+ */
+export async function droppedPaths(files: readonly File[]): Promise<readonly string[]> {
+  const answer = await desktop.pathsForFiles?.(files);
+  return answer?.paths ?? [];
 }
 
 /** Where the result should go. `null` when cancelled. */

@@ -318,10 +318,38 @@ def main() -> int:
             == "TheNormalizer",
             page.script("return document.querySelector('.titlebar__product').textContent;"),
         )
+        # The empty screen carries the action at full size, and it is checked as a *reachable control* rather
+        # than as prose: the report that sent this back was that the way to add a file was not visible or
+        # recognizable, and the answer to that is a button in the middle of the empty space, not a sentence
+        # telling somebody to find one in a panel header.
+        empty = page.script(
+            "const zone = document.querySelector('.empty-state--drop');"
+            "const button = document.querySelector('.empty-state__add');"
+            "if (zone === null || button === null) return null;"
+            "const b = button.getBoundingClientRect();"
+            "return {text: zone.textContent, label: button.textContent.trim(),"
+            "        w: Math.round(b.width), h: Math.round(b.height),"
+            "        filled: getComputedStyle(button).backgroundColor !== 'rgba(0, 0, 0, 0)'};"
+        )
         check(
-            "the empty queue says what the product does and what to do",
-            "Nothing queued" in page.script("return document.querySelector('.queue__empty').textContent;"),
-            "the empty state is rendered",
+            "the empty queue offers the way in, as a button, in the middle of itself",
+            empty is not None
+            and "Nothing queued" in empty["text"]
+            and empty["label"] == "Add files"
+            and empty["w"] >= 140
+            and empty["h"] >= 36
+            and empty["filled"],
+            f"a {empty['w']}x{empty['h']} filled button reading {empty['label']!r}"
+            if empty is not None
+            else "no .empty-state on the page",
+        )
+        check(
+            "and the title bar carries the same action where every application puts it",
+            page.script(
+                "const button = document.querySelector('.titlebar .btn--primary');"
+                "return button !== null && button.textContent.toLowerCase().startsWith('add files');"
+            ),
+            "a filled Add files button at the right of the bar",
         )
 
         # ---- The engine's health, which is a fetch and not markup -------------------------
@@ -423,26 +451,41 @@ def main() -> int:
         )
 
         # ---- The run control, and the layout ----------------------------------------------
-        # One verb, one dialog, one button. There were two — the same "Add files" in the title bar and in
-        # the queue's header — and two controls for one action is a question the operator cannot answer.
+        # One *action*, offered in the two places an operator looks for it: the title bar, which is where
+        # every application puts the verb that starts the work, and the middle of the empty queue, which is
+        # where the eye is when there is nothing else on the screen.
+        #
+        # This claim used to require exactly one button, and the reason it no longer does is worth keeping:
+        # two buttons both saying "Add files" *in the same panel header area* was a question the operator
+        # could not answer. Two controls for one action in the two places a person looks is not that defect —
+        # and the version that had exactly one put it in a 24 px ghost button nobody could find, which is what
+        # the last report was about.
         adders = page.script(
             "return [...document.querySelectorAll('button')]"
             "  .filter(b => b.textContent.trim().toLowerCase().startsWith('add files'))"
-            "  .map(b => b.closest('.zone, .titlebar').className.split(' ')[0]);"
+            "  .map(b => { const p = b.closest('.titlebar, .empty-state, .zone');"
+            "             return p === null ? 'nowhere' : p.className.split(' ')[0]; });"
         )
         check(
-            "there is exactly one way to add files",
-            len(adders) == 1,
+            "the way in is offered in the title bar and in the empty queue, and nowhere else",
+            sorted(adders) == ["empty-state", "titlebar"],
             f"{len(adders)} button(s) starting with \"Add files\": {adders}",
         )
         check(
-            "and it is in the queue, not the title bar",
-            adders[:1] == ["zone"],
-            f"it lives in {adders[0] if adders else 'nowhere'}",
+            "and the title bar's is the filled one that reads first",
+            page.script(
+                "const button = document.querySelector('.titlebar button');"
+                "return button.classList.contains('btn--primary');"
+            ),
+            "the first button in the bar is the primary action, not a ghost",
         )
+
+        # Named by its own class, because `.btn--primary` stopped being unique when `Add files` moved to the
+        # title bar: a query for "the primary button" now finds the way *in* rather than the way to run, and a
+        # claim that reads whichever it finds first is a claim that tests nothing.
         check(
             "the run control is present and disabled with nothing queued",
-            page.script("return document.querySelector('.btn--primary').disabled;"),
+            page.script("return document.querySelector('.actions .btn--primary').disabled;"),
             "there is nothing to press it for, so it is disabled rather than absent",
         )
         # The two columns are in the order the layout claims. This is checked as *positions* rather than
