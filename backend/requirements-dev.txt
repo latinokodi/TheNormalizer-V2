@@ -1,0 +1,22 @@
+# What is only needed to run the checks.
+
+The application itself needs what `requirements.txt` lists — `aiohttp` — and nothing else.
+
+```
+-r requirements.txt
+pytest>=8.0
+```
+
+## Why `websocket-client` is here and not there
+
+`scripts/check_window.py` drives the built page in a real Chromium over the DevTools protocol, and the
+protocol is a WebSocket. That is a *check's* dependency rather than the application's: the window itself
+speaks HTTP and server-sent events to the engine, which needs no WebSocket library on either side.
+
+It is listed here so a machine that runs the checks has it, and deliberately not in `requirements.txt` so a
+machine that runs the application does not. The script names the install command and exits non-zero when it
+is missing, rather than failing with an `ImportError` three frames into a browser session.
+
+```
+websocket-client>=1.7
+```

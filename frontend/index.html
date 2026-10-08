@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The page never loads anything from the network. `default-src 'self'` mirrors what the window is
+      allowed to do, so a mistake in the shell cannot silently become a remote fetch. `connect-src` has to
+      allow the loopback engine, which is the only thing this page talks to and is not the network — and
+      it is 8767, not either sibling's, because three tools launched side by side that all answer on one
+      port is a tool talking to the wrong engine.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:8767; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>TheNormalizer</title>
+  </head>
+  <body>
+    <!--
+      A visible fallback for the window between the page loading and React mounting. Without it a slow
+      first paint is a white rectangle, which reads as a crash.
+    -->
+    <div id="root">
+      <div class="boot">
+        <p class="boot__title">TheNormalizer</p>
+        <p class="boot__note">Starting…</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

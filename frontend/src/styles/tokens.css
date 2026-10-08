@@ -1,0 +1,377 @@
+/*
+ * TheNormalizer's design tokens.
+ *
+ * ============================================================================================
+ * The design stance, named
+ * ============================================================================================
+ *
+ * **Instrument panel.** The reference point is not a website and not a consumer app; it is a rack unit
+ * in a machine room — labelled compartments, hairline rules, every corner 90 degrees, and data set in
+ * a face where a digit is a digit. The aesthetic directions that were tried and rejected:
+ *
+ * * a "premium dark dashboard" (soft greys, rounded cards, indigo accent) — the look every generated
+ *   interface has, and therefore the look that reads as generated;
+ * * a light documentation style — wrong for a grading suite, where a bright surface beside a monitor
+ *   ruins the operator's adaptation to the picture;
+ * * a paper-brutalist light mode — the same problem, and its large negative spaces cost rows.
+ *
+ * ============================================================================================
+ * The three faults this revision fixes, and the rule each one produced
+ * ============================================================================================
+ *
+ * 1. **The theme was not correct.** The previous palette made aviation hazard red the *primary action*:
+ *    the Trim button was the same red as a failure, and it was the loudest object on screen. Red means
+ *    stop. A tool that shouts "STOP" on the button you press to work is a tool that fights its user.
+ *
+ *    **The rule: colour is state, never decoration.** There is one filled primary control and it is
+ *    light on dark — near-white, dark type, no hue at all. Hue appears only where it carries meaning:
+ *    `--verified` green, `--caution` amber, `--hazard` red, `--select` blue. Four meanings, four
+ *    colours, and not one of them is used to make something pretty.
+ *
+ * 2. **The type was ugly.** Two faults. The whole window was set in a monospace face, including the
+ *    prose, which reads as a terminal emulator rather than as software. And the faces were the
+ *    *machine's* faces — Segoe UI Variable (Windows 11 only) and Cascadia Mono (Windows Terminal only) —
+ *    so the product changed shape depending on what the operator happened to have installed.
+ *
+ *    **The rule: bundle the faces, and use each for what it is for.** Inter for everything that is read
+ *    as language; JetBrains Mono for everything that is compared as data. See `fonts.css`.
+ *
+ * 3. **Text was cut off.** Ten pixel uppercase labels with 0.16 em of tracking, inside a 22 px strip
+ *    that also had to hold a note, do not fit — and neither did the footer, whose last items simply ran
+ *    off the right edge. Small type is not the same thing as dense type.
+ *
+ *    **The rule: a size has a floor, and a strip's height is derived from the type inside it.** No
+ *    letter-spaced cap block is smaller than 10 px, no strip is shorter than its own line box plus its
+ *    rules, and anything that can be arbitrary length is given an explicit ellipsis rather than being
+ *    allowed to overflow. `layout.spec.ts` measures every leaf element in the window and fails if one
+ *    is clipped.
+ *
+ * ============================================================================================
+ * The colour system
+ * ============================================================================================
+ *
+ * One substrate, **cool graphite**, in six steps from the floor to a raised control. Cool rather than
+ * warm: a neutral-grey panel next to a video frame tints the operator's perception of the frame, and a
+ * blue-shifted grey does it less than a warm one. Not pure `#000` either — a true black beside a frame
+ * makes the frame look washed out, and it makes every hairline invisible.
+ *
+ * The steps are even, because uneven steps read as banding across a large dark surface.
+ *
+ * Status colours carry a **word** as well as a hue, always. Roughly one man in twelve cannot separate
+ * the red from the green, and a tool where "failed" is only a colour is a tool that lies to him.
+ *
+ * No gradients. No glow. No blur. No translucency. No `border-radius` — every corner is 90 degrees,
+ * because a rounded corner is a promise of softness that a cutting tool has no reason to make.
+ *
+ * ============================================================================================
+ * Contrast
+ * ============================================================================================
+ *
+ * Every text token below is measured against the two surfaces it is actually used on, and clears
+ * **WCAG 2.1 AA (4.5:1)** — `--phosphor-faint`, the weakest, is 4.8:1 on a panel and 5.3:1 on the
+ * floor, because metadata that cannot be read is metadata that is not there. The header records the
+ * measured ratio so the next person to change a value knows what they are spending.
+ *
+ * ============================================================================================
+ * Typography
+ * ============================================================================================
+ *
+ * A **Major Third (1.25)** from a 12 px base, with the top of the scale opened out. Small, because the
+ * window sits beside a video monitor and twice the rows beat twice the size — but not smaller than
+ * 10 px anywhere, which is where letter-spaced capitals stop being legible on a 1× display.
+ *
+ * ============================================================================================
+ * Spacing
+ * ============================================================================================
+ *
+ * A **4 px baseline grid**, with 2 px available for the places a hairline's width has to be accounted
+ * for. Every margin, padding and gap in the application is a token from this scale; a component that
+ * needs a value that is not here has found a gap in the scale, not a reason to write `13px`.
+ */
+
+:root {
+  /* ---- The 4 px baseline grid --------------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+
+  /* ---- Type: Major Third from a 12 px base, floored at 10 px --------------------------- */
+  --text-2xs: 10px; /* zone titles, column heads, units — the floor */
+  --text-xs: 11px; /* metadata, notes, secondary figures */
+  --text-sm: 12px; /* the base: body, values, table cells */
+  --text-base: 13px; /* an emphasised value */
+  --text-lg: 19px; /* a timecode in an input */
+  --text-xl: 22px; /* a zone title at display size */
+  --text-2xl: 27px; /* the product name */
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-loose: 1.65;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /*
+   * The floor: the frame's minimum, and the heights every strip and control is built from.
+   *
+   * `--frame-min-height` is **derived, and counted item by item** — because reasoning about it is what
+   * produced a wrong answer once already, and because this window is not the one the figure was first
+   * written for. A single-source cutter put one path row, two timecodes and four option rows in its
+   * form column. This one puts **three** source rows, each with a second line of measured facts and the
+   * bumper with a third for its black head and tail, a fourth row for the destination, an overlap and a
+   * strategy, an action bar — and beside all of it a plan and a verification report. So it is added up
+   * at the sizes above, and every term below is one of the tokens in this block:
+   *
+   *   titlebar                                                            34
+   *   SOURCES   strip 26 + its rule 1 + body padding 16
+   *             + rows 64 / 98 / 64 — each row is a 30 px field, a 6 px gap and a 28 px facts line,
+   *               and the bumper carries a second 6 px gap and a 28 px black line under that
+   *             + two 8 px gaps + the zone's own rule                      26+1+16+226+16+1 = 286
+   *   OUTPUT    strip 26 + rule 1 + body padding 16 + one 30 px row + rule 1                =  74
+   *   JOIN      strip 26 + rule 1 + body padding 16 + two 30 px rows + two 8 px gaps
+   *             + a 28 px strategy note + rule 1                                           = 148
+   *   ACTIONS   --action-bar-height 48 + its top rule 1                                    =  49
+   *   ----------------------------------------------------------------------------------------------
+   *   the form column, which is the taller of the two                                           557
+   *
+   *   PLAN and VERIFICATION, side by side with it: two wells of
+   *   (--strip-height 26 + 7 x --row-height 28) = 222 each                                      444
+   *   CONSOLE, full width: declared at 200 — a 28 px progress strip over a log well of about eight
+   *   18 px lines. It is not derived from a row count the way the zones are, because a log's length is
+   *   the one thing in this window that is genuinely arbitrary; what is declared is the smallest band
+   *   that still shows a run's last several lines without being scrolled                               200
+   *   footer                                                                               27
+   *   ----------------------------------------------------------------------------------------------
+   *   counted floor                                                                            818
+   *
+   * **Measured, and counted.** The rig is a headless Chromium driven over the DevTools protocol at an
+   * exact viewport — the browser this application ships inside, so what it measures is what the
+   * operator gets — squeezing the frame until the form column's scroll valve first opens. It opens at
+   * a frame of **819 px**: the form column's content is 559 px, and the chrome above and below it is
+   * 34 + 199 + 26 + 1. The count above is 818, so the arithmetic and the measurement agree to a pixel,
+   * and at 1440x960 (the declared minimum) nothing scrolls, nothing clips horizontally, and the log
+   * well is 179 px — about ten lines of output. The results column's two wells bottom out at their
+   * declared 222 px each, 444 in total, which is 375 px below the form column's floor: the form is the
+   * binding constraint and the wells have room to spare at every size the window can be.
+   *
+   * 960 stays, and it stays for a reason rather than by inertia. The 141 px between the floor and the
+   * promise is not slack, it is **assigned**: the form column's zones are `flex: 1 0 auto`, so at the
+   * declared minimum they share it and the log well, the plan and the verification report all get room
+   * for the rows they actually hold. Below 819 something clips, and 960 is the largest promise that
+   * still fits a 1080p display with the taskbar showing (1080 - 48 = 1032) — so it is both safe and
+   * usable, and raising it would make the window unable to open at its own minimum on the machine this
+   * is built for.
+   *
+   * `electron/main.cjs` sets `minHeight` to this number, and the two move together: a window that can
+   * be dragged shorter than the frame's floor breaks the layout promise from the outside.
+   */
+  --strip-height: 26px;
+  --row-height: 28px;
+  --field-height: 30px;
+  --timecode-height: 40px;
+  --titlebar-height: 34px;
+  --footer-height: 26px;
+  --action-bar-height: 48px;
+
+  /*
+   * The two faces, bundled. Inter is the default: this window contains sentences — help text, notes, the
+   * empty states, the plan line — and a sentence set in a monospace face is a sentence that reads as a
+   * log entry. JetBrains Mono is applied where a character is compared rather than read: timecodes,
+   * frame counts, paths, hashes, the log, and every column of figures. See `fonts.css` for why these two
+   * and not the machine's own.
+   */
+  --font-ui: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-data: "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  /*
+   * ---- Geometry: 90 degrees, and hairlines --------------------------------------------
+   *
+   * `--hairline` is the **only** width token, and the names below it are the only colour
+   * tokens. The two must not overlap, and they did: `--rule` was declared here as `1px` and
+   * again further down as a colour, so the later one won and every `border: var(--rule) solid
+   * …` in the stylesheet became `border: <a colour> solid <a colour>` — invalid at computed
+   * value time, and dropped. `border-style` then fell back to `none`, which forces the used
+   * width to zero, so twenty-six declarations across the interface quietly rendered no edge
+   * at all: the zones, the table, the inputs, and the one primary button, whose default
+   * disabled state is what a person saw as "the Trim button looks like floating text".
+   *
+   * A colour token used as a length is not an error any tool reports. It is why the two
+   * families are now named apart and why nothing here is called `--rule` any more.
+   */
+  --hairline: 1px;
+  --focus-width: 1px;
+
+  /* ---- Motion: feedback only, and short ------------------------------------------------- */
+  --motion-fast: 80ms;
+  --motion-base: 120ms;
+  --motion-sweep: 1.3s;
+  --easing: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* ---- The fixed window ---------------------------------------------------------------- */
+  /*
+   * This is a PC application and it is not responsive. The window opens fullscreen, the layout is a grid
+   * that fills it, and **nothing scrolls** — every control is on screen or it does not belong in the
+   * window. So the frame is declared here, once, and the grid uses it.
+   *
+   * A grading suite is not a 1366x768 laptop, and a scrollbar is worse than a larger minimum.
+   */
+  --frame-min-width: 1280px;
+  --frame-min-height: 820px;
+  --form-panel-width: 30%;
+}
+
+/* ==========================================================================================
+   The substrate: cool graphite, in six even steps
+   ========================================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* Floor to raised. Even steps: uneven ones read as banding on a large dark surface. */
+  --substrate-000: #0d1013; /* the window floor */
+  --substrate-100: #12161a; /* a sunken well: the log, an inset field */
+  --substrate-200: #171c21; /* a panel */
+  --substrate-300: #1e242a; /* a zone header, a table head */
+  --substrate-400: #262d34; /* a hover */
+  --substrate-500: #303841; /* an active control */
+
+  /* Hairlines. `--rule-strong` is a zone boundary; `--rule-hair` separates rows that must be felt
+     rather than seen. */
+  --rule-hair: #21272d;
+  --rule: #2b333b;
+  --rule-strong: #3b454f;
+
+  /*
+   * The edge of a control, and the one line in this file that is a compliance figure rather than a
+   * taste decision.
+   *
+   * The three rules above cannot do this job. `--rule-strong` is 1.76:1 on `--substrate-200`, and
+   * `--rule` — the border every input used to carry — is **1.49:1 against the input's own fill**
+   * (`--substrate-000`). WCAG 2.2 AA 1.4.11 requires 3:1 for the visual information that identifies
+   * a control, and a 1.49:1 border is not a boundary, it is a suggestion: the operator finds the
+   * field by its caret, not by its edge, and a control that cannot be seen cannot be hit.
+   *
+   * `#606b76` is measured, not chosen. Against `--substrate-200` it is **3.15:1**, and against the
+   * window floor `--substrate-000` it is **3.51:1**, which is also the case that matters for an
+   * input whose fill is the floor. It is deliberately not brighter: a 4.5:1 edge on every field
+   * would make the panel a grid of boxes and cost the primary control its position as the loudest
+   * thing in the window, and 1.4.11 asks for 3:1 rather than as much as possible.
+   *
+   * So this token is for **interactive controls only** — a field, a select, a button. `--rule-hair`,
+   * `--rule` and `--rule-strong` stay for decoration and for zone boundaries, where 1.5:1 is the
+   * intent: a divider that competes with a field edge is a divider that lied about being one.
+   */
+  --rule-edge: #606b76;
+
+  /* Phosphor text, four levels, all four used, all four measured against `--substrate-200`. */
+  --phosphor-bright: #e9edf1; /* 14.6:1 — a value being read */
+  --phosphor: #b6bfc9; /* 9.2:1 — a label */
+  --phosphor-dim: #9da5ad; /* 6.9:1 — metadata */
+  --phosphor-faint: #7e8892; /* 4.8:1 — a unit, a hint */
+  --phosphor-inverse: #0d1013;
+
+  /*
+   * The interactive accent. Blue, and deliberately *not* one of the three status colours: a focus ring
+   * that is the same red as a failure is a focus ring nobody can trust. It marks where the keyboard is
+   * and which row is selected, and it means nothing else.
+   */
+  --select: #3d84c6;
+  --focus: #7fb2e8;
+  --select-wash: rgb(61 132 198 / 14%);
+  --select-edge: rgb(61 132 198 / 60%);
+
+  /*
+   * The primary control. Near-white on dark: the single highest-contrast object in the window, which is
+   * what "this is the button that does the work" should look like. No hue, so it never competes with a
+   * status colour and never has to be re-tuned when the palette moves.
+   */
+  --primary: #e9edf1;
+  --primary-hover: #ffffff;
+  --primary-ink: #0d1013;
+
+  /* ---- State. Four meanings, four colours, nothing decorative. ------------------------- */
+  --verified: #57c98b; /* 8.3:1 — measured, and it matched */
+  --verified-wash: rgb(87 201 139 / 12%);
+  --caution: #d9a441; /* 7.6:1 — a warning is not a failure and must not look like one */
+  --caution-wash: rgb(217 164 65 / 12%);
+  --hazard: #ef5f56; /* 5.3:1 — it failed, or it cannot be done */
+  --hazard-wash: rgb(239 95 86 / 12%);
+  --hazard-edge: rgb(239 95 86 / 55%);
+
+  /* No shadows anywhere except the one element that genuinely floats. */
+  --scrim: rgb(6 8 10 / 76%);
+}
+
+/* ==========================================================================================
+   There is one theme, and it is dark
+   ========================================================================================== */
+
+/*
+ * A light value set used to live here, reachable from a switch in the title bar. It is gone.
+ *
+ * A grading suite is dim, and a bright surface beside a video monitor destroys the operator's
+ * adaptation to the picture — which makes the light theme not a preference but a way to get the
+ * picture judged wrong. It also meant every semantic colour had to be argued twice: the same
+ * *name* needs a different *value* on a light panel, because contrast is not symmetric, so each
+ * of the four status hues carried two justifications and two sets of contrast figures.
+ *
+ * What remains below is `forced-colors`, which is not a theme. It is the operating system
+ * taking the palette away from the application, and honouring that is how a selected row stays
+ * visible for someone who needs high contrast.
+ */
+
+/* ==========================================================================================
+   Reduced motion
+   ========================================================================================== */
+
+/*
+ * A token, so honouring the preference is one block rather than a hunt. Nothing here is decorative —
+ * it is all feedback — so the durations go to zero and `transitionend` handlers keep working.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-sweep: 0s;
+  }
+}
+
+/* ==========================================================================================
+   Forced colours
+   ========================================================================================== */
+
+/*
+ * Windows high contrast replaces the palette, so the application stops fighting it: lines become the
+ * system's text colour and the accent becomes the system's highlight, which is the only way a selected
+ * row stays visible when the OS has taken the colours away.
+ */
+@media (forced-colors: active) {
+  :root {
+    --rule-hair: CanvasText;
+    --rule: CanvasText;
+    --rule-strong: CanvasText;
+    /* The OS takes the palette away, so a control's edge becomes the system's text colour — which is
+       the one value guaranteed to be distinguishable from whatever it paints the panel with. */
+    --rule-edge: CanvasText;
+    --select: Highlight;
+    --select-edge: Highlight;
+    --select-wash: Canvas;
+    --hazard: CanvasText;
+    --hazard-edge: CanvasText;
+    --hazard-wash: Canvas;
+    --primary: Highlight;
+    --primary-ink: HighlightText;
+    --substrate-400: Highlight;
+    --substrate-500: Highlight;
+  }
+}

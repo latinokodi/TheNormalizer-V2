@@ -1,0 +1,207 @@
+/*
+ * The reset, and nothing else.
+ *
+ * Everything visual lives in `app.css`, keyed off `tokens.css`. What is here is the handful of rules that
+ * have to be true before any of that can work: the box model, the frame, the two element defaults the
+ * browser gets wrong for an application, and the five primitives that are genuinely global.
+ *
+ * There is no `.card`, no `.panel`, no `.btn` here. A control's appearance belongs with the thing it is,
+ * and a stylesheet of reusable-looking classes is how a form ends up with four kinds of button.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  /*
+   * The frame does not scroll. This is a desktop window that opens maximized and fits its own layout; a
+   * scrollbar on the window means a control is off screen, and a control that is off screen does not
+   * exist for the operator. The zones that can hold an unbounded number of rows — the queue, the log,
+   * the report — scroll *inside themselves*, which is a different thing and is deliberate.
+   */
+  overflow: hidden;
+}
+
+body {
+  background: var(--substrate-000);
+  color: var(--phosphor-bright);
+  /*
+   * Inter, not the monospace. This window contains sentences — the plan's notes, the warnings, the empty
+   * states, the help under a field — and a sentence set in a monospace face reads as a log entry rather
+   * than as software. The data face is applied per element, by `.figures` and by the controls whose
+   * content is a character to be compared rather than a word to be read.
+   */
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  /*
+   * An application is not a document. Text selection is opt-in per surface, because a drag across a
+   * table of forty rows selecting all of them is a nuisance with no undo. The log, a level and a path
+   * opt in with `.selectable`.
+   */
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Text a user will want to copy: a path, a level, a command line. */
+.selectable {
+  user-select: text;
+  cursor: text;
+}
+
+/* ---- Focus ------------------------------------------------------------------------------ */
+
+/*
+ * One ring, everywhere, never removed. `:focus-visible` rather than `:focus` so a mouse click does not
+ * leave a ring behind — which is the reason people remove focus styles in the first place, and then
+ * keyboard users cannot see where they are.
+ */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* ---- Elements the browser styles for a document and not for a panel --------------------- */
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input,
+select {
+  font: inherit;
+}
+
+/* A number field's spinners are unusable at this size and there is nothing they do that typing does not. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+fieldset {
+  border: none;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* ---- Scrollbars ------------------------------------------------------------------------ */
+
+/*
+ * A default Windows scrollbar is bright enough to become the loudest thing on a dark panel. These are
+ * thin, low contrast, and still respond to hover — and only the interior zones use them, because the
+ * frame never scrolls.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--phosphor-faint);
+  background-clip: content-box;
+}
+
+/* ---- Data figures ---------------------------------------------------------------------- */
+
+/*
+ * Every number in this application is compared against another number in an adjacent row. Tabular
+ * figures and a monospace face are what make a column of levels line up digit for digit, which is the
+ * whole of what an operator needs in order to read four of them at once.
+ */
+.figures {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---- Truncation ------------------------------------------------------------------------ */
+
+/*
+ * Deliberate truncation, always with a visible ellipsis. A string that can be any length is either
+ * ellipsised or wrapped; there is no third option, because the third option is text running off the edge
+ * of the panel.
+ */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Boot ------------------------------------------------------------------------------ */
+
+/*
+ * Before React mounts. One line, in the same panel language, so a slow first paint is a blank panel
+ * rather than a white flash.
+ */
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: 100%;
+  background: var(--substrate-000);
+  color: var(--phosphor-faint);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.boot__title {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+}
+
+.boot__note {
+  color: var(--phosphor-faint);
+}
