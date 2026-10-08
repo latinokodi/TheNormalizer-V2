@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Changed — the log is a panel, not a band
+
+- **The log has the left column's spare height instead of a 128 px strip across the bottom.** It was a band
+  and it had 128 px of a 720 px window, of which 30 was a progress strip of its own — so a run's log got about
+  **90 px, four lines**, and this console exists to carry every stage, every command line and every
+  measurement. It is now a zone under the settings and it takes the height the settings do not use: **230 px**
+  at the size the window opens at, and more as the window grows.
+- **The progress figures moved onto the log's own header.** A separate strip above the footer was a *third*
+  28 px band in a 720 px window — title bar, log header, progress strip, footer — and the one carrying the
+  least. The bar and the count sit on the header of the panel that reports the run.
+- **`.app__col--form > .zone` was overriding `.zone--log`'s `flex: 1 1 auto`**, which is why the log stayed
+  pinned at its 152 px floor. The cause is specificity and not source order: `>` with two class selectors is
+  (0,2,0) and `.zone--log` is (0,1,0), so the later rule lost. The column rule is now
+  `.app__col--form > .zone:not(.zone--log)`, which keeps it at (0,2,0) and lets the log's own rule win for the
+  right reason rather than by an `!important`.
+- **Both progress sweeps were escaping their tracks and painting over their neighbours.** A 30 % block
+  translated to `+340 %` on a 56 px row bar ends **40 px past its own right edge**, which is the width of the
+  next table cell: a working file's bar painted over its neighbour's Show button. On the 200 px console bar it
+  was 204 px. The travelling segment is now a **gradient with its `background-position` animated**, so the
+  paint moves inside the box instead of the box moving out of it and no `overflow` rule has to be right for it
+  to stay put.
+- Two dead rules removed with the band: `.progress-percent` and `.progress-figure`, and `--console-floor`
+  replaced by `--log-floor`.
+
+
 ### Changed — feedback from the second use of the window
 
 - **The window is the size of its content and is no longer maximized.** It opened at 1600x1000 and then

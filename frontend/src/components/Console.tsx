@@ -1,23 +1,22 @@
 /**
- * The console: how far the run is, and everything it has said.
+ * The run's progress, and everything it has said.
  *
- * ## Why the log is newest-first
+ * ## Why the log is a panel in the left column rather than a band across the bottom
  *
- * A run says more than fits on a screen — every stage, every exact command line, every position ffmpeg
- * reports — and the thing an operator wants when they look at it is the *last* thing, which is the thing
- * that explains why the run is where it is. Oldest-first puts that below the fold.
+ * It was a band, and it had 128 px of a 720 px window — of which 30 was a progress strip of its own, so a
+ * run's log got about **90 px: four lines**. The whole point of this console is that it carries every stage,
+ * every exact command line and every measurement a run makes, and a log a run outgrows in its first second
+ * is a log nobody reads. Under the settings it has the height the settings do not use.
  *
- * ## Why the bar is indeterminate when the engine does not know the length
+ * ## Why the progress figures are in the panel's header
  *
- * `progress.fraction` is `null` when a pass cannot know how long it will take — a `volumedetect` pass
- * reads a whole file to answer one question and reports no position while it does. A bar filling to a
- * number nobody measured is a lie about the one thing the operator is watching, so it sweeps instead.
+ * Because a header strip is exactly what they need and the panel already has one. A separate 28 px band
+ * above the footer was a **third** strip in a 720 px window — title bar, log header, progress strip, footer —
+ * and it was the one carrying the least information. The figures are the run's position, so they belong on
+ * the log's own header, where the log is.
  *
- * ## Why the failure is in the band and not a dialog
- *
- * A dialog has to be dismissed before the operator can read the log, and the log is where the rest of the
- * story is. It sits between the bar and the log, wrapping, bounded to three lines so a long ffmpeg
- * argument list cannot push the log out of the band.
+ * The header keeps the same shape as every other zone's: a title on the left, and the state of the thing it
+ * titles on the right.
  */
 
 import type { LogLine, QueueRow, RunState } from "../state/queue";
@@ -38,72 +37,78 @@ const TONE: Record<string, string> = {
   error: "log__line log__line--error",
   heartbeat: "log__line log__line--heartbeat",
   stage: "log__line log__line--stage",
-  log: "log__line",
-  stdout: "log__line",
 };
 
 export function Console({ run, log, rows, elapsed, onClear }: Props) {
   const busy = run.kind === "running";
-  /**
-   * Which file the run is on, and how far through it.
-   *
-   * The bar is about *the file being worked on* rather than the batch, because a batch's own fraction
-   * would need every file's length before the first one had been read — and the engine does not know a
-   * file's length until it has probed it.
-   */
+  const done = rows.filter((row) => row.stage === "done" || row.stage === "skipped").length;
   const working = rows.find((row) => row.stage === "running") ?? null;
-  const done = rows.filter((row) => row.stage === "done").length;
   const fraction = working?.fraction ?? null;
 
   const headline = (() => {
-    if (busy) {
-      return working === null ? "Starting…" : (working.stage_label ?? "Working…");
-    }
-    if (run.kind === "done") {
-      const failed = run.failed > 0 ? `, ${run.failed} failed` : "";
-      return `Finished ${run.done} file${run.done === 1 ? "" : "s"}${failed} in ${run.elapsed.toFixed(1)} s`;
-    }
     if (run.kind === "failed") {
-      return run.message;
+      return "Stopped";
     }
-    return rows.length === 0 ? "Nothing has run yet." : "Ready. Press Normalize.";
+    if (!busy) {
+      return log.length === 0 ? "nothing yet" : `${log.length} lines`;
+    }
+    return working === null ? "Starting…" : (working.stage_label ?? "Working…");
   })();
 
   return (
-    <section className="console" aria-label="Progress and log">
-      <div className="progress-strip">
-        {busy ? (
-          fraction === null ? (
-            <div className="progress-bar progress-bar--running" role="img" aria-label="Working" />
+    <section className="zone zone--log" aria-label="Log">
+      <div className="zone__head">
+        <h2 className="zone__title">Log</h2>
+
+        <span className="log__figure">
+          {/*
+            A real `<progress>` where the engine knows the length, and a sweeping fill where it does not:
+            `progress.fraction` is `null` when a pass cannot know how long it will take — a `volumedetect`
+            pass reads a whole file to answer one question and reports no position while it does. A bar
+            filling to a number nobody measured is a lie about the one thing the operator is watching.
+          */}
+          {busy ? (
+            fraction === null ? (
+              <span className="log__bar log__bar--running" role="img" aria-label="Working" />
+            ) : (
+              <progress
+                className="log__bar"
+                value={Math.round(fraction * 100)}
+                max={100}
+                aria-label="Progress through the file being normalized"
+              />
+            )
           ) : (
             <progress
-              className="progress-bar"
-              value={Math.round(fraction * 100)}
+              className="log__bar"
+              value={rows.length === 0 ? 0 : Math.round((done / rows.length) * 100)}
               max={100}
-              aria-label="Progress through the file being normalized"
+              aria-label="Files finished"
             />
-          )
-        ) : (
-          <progress
-            className="progress-bar"
-            value={rows.length === 0 ? 0 : Math.round((done / rows.length) * 100)}
-            max={100}
-            aria-label="Files finished"
-          />
-        )}
-        <span className="progress-percent">
-          {busy && fraction === null ? "····" : busy ? `${Math.round((fraction ?? 0) * 100)}%` : `${done}/${rows.length}`}
+          )}
+          <span className="log__count">
+            {busy && fraction === null
+              ? "····"
+              : busy
+                ? `${Math.round((fraction ?? 0) * 100)}%`
+                : `${done}/${rows.length}`}
+          </span>
         </span>
-        <span className="progress-status">{headline}</span>
+
+        <span className="zone__note">{headline}</span>
+
         <span className="spacer" />
+
         {working !== null && busy ? (
-          <span className="progress-figure" title={working.path}>
+          <span className="log__figure-text" title={working.path}>
             {working.name}
           </span>
         ) : null}
-        {busy ? <span className="progress-figure">elapsed {clock(elapsed)}</span> : null}
+        {busy ? <span className="log__figure-text">elapsed {clock(elapsed)}</span> : null}
+
+        {/* The one action on the log, and it is here because this is the thing it clears. */}
         <button type="button" className="btn btn--ghost btn--small" onClick={onClear}>
-          Clear log
+          Clear
         </button>
       </div>
 
@@ -121,7 +126,7 @@ export function Console({ run, log, rows, elapsed, onClear }: Props) {
               <span className="log__file" title={line.file}>
                 {line.file}
               </span>
-              <span className="log__text selectable">{line.text}</span>
+              <span className="log__text">{line.text}</span>
             </p>
           ))
         )}

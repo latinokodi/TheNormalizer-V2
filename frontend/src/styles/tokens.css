@@ -182,14 +182,10 @@
   --titlebar-height: 34px;
   --footer-height: 26px;
   --action-bar-height: 48px;
-  /*  The console band's floor. 128 px is the progress strip (28), a failure's own line (~17), two lines of
-      the run's log at the data face's 16 px line box, and the padding either side.
-
-      It was 190, chosen when the window was 1000 px tall and the log was the only thing that would fill it.
-      That floor was then most of what held the window open: the settings need 339 px and the bars need 60,
-      so a 190 px console put the smallest usable window at nearly 600 px and made the number look arbitrary
-      because it was. A log is read for its last lines, and two of them plus the strip is a log. */
-  --console-floor: 128px;
+/*  The log's floor. It is a zone in the left column now rather than a band: 152 px is its header strip (26)
+      plus six lines at the data face's 16 px line box (96) plus the body's padding (24) — six lines is where
+      a log stops being a peephole and starts being a log, and every pixel above this goes to the log. */
+  --log-floor: 152px;
 
   /*
    * The two faces, bundled. Inter is the default: this window contains sentences — help text, notes, the

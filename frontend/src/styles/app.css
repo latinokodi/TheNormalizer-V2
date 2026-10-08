@@ -90,21 +90,20 @@
  */
 
 /*
- * The frame: a flex column whose **log grows** and whose body is exactly as tall as its two columns.
+ * The frame: a flex column of title bar, body, progress strip, footer.
  *
- * ## Why not a grid of four rows
+ * ## Where the slack goes, and why it took four attempts
  *
- * Three versions of this were a grid, and each one put the hole somewhere different: the body on `1fr` with
- * every zone inside it growing gave two large blank panels under two small controls; `auto` for the body
- * moved the hole into the log, which then reserved half the screen for a log that had said nothing. The
- * fault in both was that *something had to absorb the window's height*, and the grid gave that job to a
- * region chosen by row order rather than by which region actually grows.
+ * Three versions of this were a grid, and each put the hole somewhere different: the body on `1fr` with
+ * every zone inside it growing stretched two 284 px panels around two 45 px fields; `auto` for the body
+ * moved the hole into the console band, which then held half the screen for a log that had said nothing.
+ * The fault in both was that *something had to absorb the window's height*, and a grid gave that job to a
+ * region chosen by row order.
  *
- * Flex answers the question directly. The body is `flex: 0 0 auto` — as tall as the settings plus what is
- * left for the file list, and no taller — and the console is `flex: 1 1 auto`, so **every pixel the body
- * does not use goes to the log**. A short window is controls and files with the log's 128 px floor under
- * them; a tall one is controls, files, and a log with room to be read; a run with three hundred lines fills
- * it and scrolls inside it.
+ * Flex answers it directly and the answer is: **the log**, which is the one region whose content is
+ * unbounded. It is not a band any more — it is `.zone--log`, a zone at the foot of the left column, and
+ * every pixel the settings do not use is its. The strip above the footer is `flex: none`, so it is exactly
+ * one row tall and never competes.
  *
  * `min-height: 100vh` rather than `height` so that a window dragged below the floor gives the settings
  * column a scrollbar *and* a page that can scroll, instead of a Normalize button that has been clipped off
@@ -131,13 +130,16 @@
   display: grid;
   grid-template-columns: var(--form-panel-width) minmax(0, 1fr);
   /*
-   * `0 0 auto`: as tall as its columns need and not one pixel more, so the slack is left for the console.
-   * It has a **cap** as well — `max-height` — because the settings column's content is fixed and the queue
-   * column's floor is declared, so anything above that cap belongs to the log rather than to more blank
-   * substrate beside the file list.
+   * `1 1 auto`, and **no cap** — because the thing that decides how tall this is is its own content, and its
+   * content is `.zone--log`, which is `flex: 1 1 auto` inside the taller column.
+   *
+   * A `max-height` was tried here and was worse than useless: it held the body 18 px shorter than the
+   * column wanted, so the settings column *scrolled* — a scrollbar on a form whose content fits — and the
+   * log still got only its floor. A cap is the wrong instrument for this; `flex: 1 1 auto` on the log zone
+   * already means "everything the settings do not use", and when the window is too short for both, the
+   * settings scroll, which is what `.app__col--form` is for.
    */
-  flex: 0 0 auto;
-  max-height: calc(100% - var(--console-floor));
+  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -183,8 +185,17 @@
  * `flex: 0 0 auto` for the zones, and the leftover height goes to a spacer below the action bar rather
  * than above it: the button belongs at the foot of the controls it acts on, not floating in the middle of
  * the column with a gap under it.
+ *
+ * **`:not(.zone--log)` is what makes `.zone--log`'s `flex: 1 1 auto` apply, and without it the log sits at
+ * its floor.** The two rules did not have the same weight: `.app__col--form > .zone` is two class
+ * selectors, (0,2,0), and `.zone--log` is one, (0,1,0) — so the earlier rule won on *specificity*, and the
+ * later rule's `flex: 1 1 auto` never applied whatever order they were written in. The log zone is a
+ * `zone` in this column and always matches the rule above, so the exclusion has to be written here, and
+ * `:not()` adds nothing to the specificity of this selector: the two stay level at (0,2,0) and the one
+ * that should win is the one that is later. The column's slack then goes to the log, which is the one
+ * region in it whose content is unbounded, and the two setting zones keep the height of what is in them.
  */
-.app__col--form > .zone {
+.app__col--form > .zone:not(.zone--log) {
   flex: 0 0 auto;
 }
 
@@ -418,13 +429,22 @@
   transition: width var(--motion-base) linear;
 }
 
-.queue__bar--idle::after {
-  content: "";
-  display: block;
-  height: 100%;
-  width: 30%;
-  background: var(--select);
-  animation: sweep var(--motion-sweep) var(--easing) infinite;
+/*
+ * The same sweep on the row's own 56 px bar, and the same fault in a smaller box: a 30 % block translated
+ * +340 % escaped this bar by about **40 px**, which is the width of the next cell — so a working file's
+ * progress bar painted over its neighbour's button. Nothing clipped it: this element has `overflow: hidden`,
+ * but that clips *descendants*, and the travelling block was the element's own `::after` painted in the same
+ * box. See `.log__bar--running` for the arrangement that cannot escape.
+ */
+.queue__bar--idle {
+  background:
+    linear-gradient(
+        to right,
+        var(--select) 0 30%,
+        var(--substrate-000) 30% 100%
+      )
+      0 0 / 40% 100% repeat-x;
+  animation: travel var(--motion-sweep) linear infinite;
 }
 
 /* A status pill: shape and a word, never colour alone. */
@@ -572,6 +592,30 @@
 .setting__toggle:has(input:disabled) {
   color: var(--phosphor-faint);
   cursor: not-allowed;
+}
+
+/*
+ * The log, as a zone in the left column under the settings.
+ *
+ * **It is the region that absorbs the frame's slack**, and that is the whole of the layout change: it used
+ * to be a band with 128 px of a 720 px window — around four lines of a run's every command and measurement,
+ * which a run outgrows in the first second. Given the space under the settings it has several hundred pixels
+ * at the size the window opens at, and it takes more if the window is dragged taller.
+ *
+ * `min-height: var(--log-floor)` keeps it a usable log when the window is at its smallest, and the log
+ * inside scrolls rather than the frame.
+ */
+.zone--log {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: var(--log-floor);
+  overflow: hidden;
+}
+
+.zone--log .log {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* A caption over a block of its own, in the report. */
@@ -806,11 +850,14 @@ input::placeholder {
   flex: none;
   min-height: var(--action-bar-height);
   /*
-   * Pushed to the foot of the column, under a spacer the frame inserts above it. The button belongs at the
-   * bottom of the controls it acts on — floating in the middle of the column with a gap under it is what a
-   * panel looks like when nobody finished it.
+   * **No `margin-top: auto`**, and its absence is deliberate. It was there to push the button to the foot of
+   * the column when the settings were the last thing in it — and when the log moved in beneath, the auto
+   * margin became a 50 px hole between the last control and the button. An auto margin absorbs whatever
+   * space it is given, which is the right answer only while nothing follows it.
+   *
+   * The bar sits directly under the controls it acts on. The space in this column belongs to the log now,
+   * and there is no leftover for a margin to claim.
    */
-  margin-top: auto;
   padding: var(--space-4) var(--space-5);
   background: var(--substrate-300);
   border-top: var(--hairline) solid var(--rule-strong);
@@ -866,43 +913,26 @@ input::placeholder {
    The console: progress, the failure, and the log
    ========================================================================================== */
 
-.console {
-  display: flex;
-  flex-direction: column;
-  /*
-   * The floor is a `min-height` rather than a grid track, and that is the whole reason the frame is a flex
-   * column now: the console absorbs every pixel the body does not use and stops at this floor when there is
-   * nothing spare. "As tall as its content", "at least this tall" and "all the height that is left" is one
-   * line of flex and was three failed attempts as a grid.
-   */
-  min-height: var(--console-floor);
-  min-width: 0;
-  overflow: hidden;
-  background: var(--substrate-100);
-  border-top: var(--hairline) solid var(--rule-strong);
-}
-
-.progress-strip {
+/* ==========================================================================================
+   The run's position, on the log's own header
+   ==========================================================================================
+ *
+ * These were a 28 px band of their own above the footer, and in a 720 px window that was a **third** strip —
+ * title bar, log header, progress strip, footer — carrying the least information of the three. The figures
+ * are the run's position, so they sit on the header of the log, which is the thing that reports the run.
+ *
+ * The bar is 6 px in the console it used to be and 112 px wide here: a header strip is one row tall, so the
+ * figure has to be readable at a glance and the bar is what makes it readable without reading the number.
+ */
+.log__figure {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-3);
   flex: none;
-  height: var(--row-height);
-  padding: 0 var(--space-5);
-  background: var(--substrate-300);
-  border-bottom: var(--hairline) solid var(--rule-hair);
 }
 
-/*
- * Progress. A real `<progress>` element, because it is one: a screen reader announces its value, and
- * `value` omitted is the indeterminate state the HTML spec already defines.
- *
- * It is restyled entirely — the platform default is a rounded bar three pixels too tall for this panel —
- * so `appearance: none` and then the two vendor pseudo-elements.
- */
-.progress-bar {
-  flex: none;
-  width: 200px;
+.log__bar {
+  width: 112px;
   height: 6px;
   appearance: none;
   border: var(--hairline) solid var(--rule);
@@ -910,38 +940,76 @@ input::placeholder {
   overflow: hidden;
 }
 
-.progress-bar::-webkit-progress-bar {
+.log__bar::-webkit-progress-bar {
   background: var(--substrate-000);
 }
 
-.progress-bar::-webkit-progress-value {
+.log__bar::-webkit-progress-value {
   background: var(--select);
   transition: width var(--motion-base) linear;
 }
 
 /*
- * Indeterminate: a bright segment travelling a track. Drawn on a plain element rather than on a
- * `<progress>` with no value, because an indeterminate `<progress>` is a replaced element with its own
- * user-agent layout and its `::after` is measured against that instead of against the track.
+ * Indeterminate: a bright segment travelling a track.
+ *
+ * ## Why this is a background and not a block that moves
+ *
+ * It was a `::after` of 30 % of the track, translated from −100 % to +340 %. On a 200 px bar that is a 60 px
+ * segment ending **204 px past its own right edge**, and the only thing between it and the rest of the
+ * window was `overflow: hidden` on the bar — a rule that can be lost in an edit, and which *was* lost on the
+ * sibling element that drew the same sweep: the row's 56 px bar escaped by 40 px into the next cell and
+ * painted over its neighbour's button.
+ *
+ * So the travelling segment is a **gradient with its position animated**, and it cannot leave the box:
+ * `background-position` moves the paint inside the element, where a `transform` moves the element itself.
+ *
+ * Built so the two halves of the cycle are the same picture — bright 0–30 %, empty 30–100 % — with
+ * `background-repeat` tiling it, so the loop point is invisible at any track width.
  */
-.progress-bar--running::after {
-  content: "";
-  display: block;
-  height: 100%;
-  width: 30%;
-  background: var(--select);
-  animation: sweep var(--motion-sweep) var(--easing) infinite;
+.log__bar--running {
+  background:
+    linear-gradient(
+        to right,
+        var(--select) 0 30%,
+        var(--substrate-000) 30% 100%
+      )
+      0 0 / 40% 100% repeat-x;
+  animation: travel var(--motion-sweep) linear infinite;
 }
 
-@keyframes sweep {
-  0% {
-    transform: translateX(-100%);
+/*
+ * From one tile-width right of the start to one tile-width left of it: the paint enters from the left and
+ * leaves to the right, and the loop point is invisible because the pattern repeats.
+ */
+@keyframes travel {
+  from {
+    background-position: 40% 0;
   }
 
-  100% {
-    /* Three widths and a bit: enough to leave the track at the end of the run. */
-    transform: translateX(340%);
+  to {
+    background-position: -40% 0;
   }
+}
+
+/* The number beside the bar, which is the same figure a screen reader reads off the element. */
+.log__count {
+  min-width: 4ch;
+  text-align: right;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  color: var(--phosphor-bright);
+}
+
+/* The file being worked on and the elapsed time: the first things to yield when the header is narrow. */
+.log__figure-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: var(--phosphor-faint);
 }
 
 /*
@@ -951,40 +1019,14 @@ input::placeholder {
  * and `tokens.css` has already zeroed the duration, so this changes the shape rather than the timing.
  */
 @media (prefers-reduced-motion: reduce) {
-  .progress-bar--running::after,
-  .queue__bar--idle::after {
+  /* The animation stops and the bar *becomes* full: the gradient is replaced by flat accent, so a bar that
+     means "working" still does not look like an empty one that means "not started" — which is the whole
+     reason this is a preference query rather than a reason to draw nothing. */
+  .log__bar--running,
+  .queue__bar--idle {
     animation: none;
-    width: 100%;
+    background: var(--select);
   }
-}
-
-/* The number beside the bar, which is the same figure a screen reader reads off the element. */
-.progress-percent {
-  flex: none;
-  min-width: 4ch;
-  text-align: right;
-  color: var(--phosphor-bright);
-  font-size: var(--text-sm);
-}
-
-.progress-status {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-xs);
-  color: var(--phosphor-dim);
-}
-
-/* The readout: it yields before the stage name does, because the name says *what* is happening. */
-.progress-figure {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-2xs);
-  color: var(--phosphor-faint);
 }
 
 /*

@@ -94,6 +94,47 @@ Python 3.12.10, Windows. Where a figure is machine-specific it says so.
 | A failed start draws the page that explains it | with `backend\` renamed away, the window titled itself **"TheNormalizer - the engine did not start"** and the shell logged *backend exited unexpectedly (code 2)* | **checked** |
 | The interface has been visually inspected | `docs/shots/01-empty.png`, captured from the live page at 1600×1000 | **checked** (the empty state) · **not checked** (a queue with rows in it, a run in progress, a finished report) |
 
+## 6b. What the Drive figure does, measured on real material
+
+The honest answer to *"I set +12 dB and the quieter parts are still at a lower volume"*, because it is a
+correct observation and the number behind it is not obvious.
+
+Measured on an 820-second interview (`Alex Shevchenko.mp4`, source peak −1.10 dBFS, source quiet-to-loud
+spread 21.8 LU), normalized to −6.0 dBFS:
+
+| | source | normalized | moved |
+|---|---|---|---|
+| the quietest fifth of the file | −41.0 LUFS | −34.8 LUFS | **+6.3 dB** |
+| the loudest fifth | −19.3 LUFS | −15.6 LUFS | **+3.7 dB** |
+| the gap between them | 21.8 dB | 19.2 dB | closed by **2.6 dB** |
+
+So the quiet parts **were** lifted, by 2.7 dB more than the loud ones. They are still 19 dB down because the
+file arrived with 22 dB of spread in it, and `Drive` is a limiter setting: it decides how much of the *top* of
+the material is clamped, not how far the body is raised. On a controlled 90-second excerpt of the same file,
+the relationship is:
+
+| Drive | peak | mean | quietest fifth | loudest fifth | evened out by |
+|---|---|---|---|---|---|
+| 0 dB | −6.00 | −1.3 | −2.7 | −0.1 | 2.6 dB |
+| +12 dB (the default) | −5.90 | +9.0 | +5.0 | +11.2 | 6.1 dB |
+| +24 dB | −6.00 | +14.0 | +7.3 | +20.0 | 12.6 dB |
+| +36 dB | −6.00 | +15.8 | +8.4 | +24.2 | 15.8 dB |
+
+More drive flattens more, monotonically, and it does so by clamping the peaks harder — the loud fifth moves
++24 dB at a drive of +36 while the quiet fifth moves +8. That is a limiter being a limiter and not a defect.
+What it is **not** is a compressor evening a file out, and that is worth stating plainly:
+
+**`chain` contains no gain reduction.** The `acompressor` in the operator's Track Fx is `ratio=1` —
+transparent, by design, because the filtergraph reproduces their Premiere setting verbatim — so the only
+dynamics this product changes are the ones its limiter clamps. `docs/DESIGN.md` §2.2 has the measurement
+behind `ratio=1`.
+
+An actual compressor in front (threshold −30, ratio 6) closed the same 90-second excerpt's gap by **13.5 dB**,
+about twice what +24 of drive managed. It is available and it is not wired to anything: doing so would change
+what every existing setting sounds like, so it is a decision rather than a fix. `scripts/drive_sweep.py`
+measures any drive value against any material, and `scripts/loudness_profile.py` reports two files window by
+window.
+
 ## 7. What is not checked
 
 - **No test in `backend/tests` runs a real ffmpeg.** The suite launches none except the one `/api/health`

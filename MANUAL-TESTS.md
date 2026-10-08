@@ -144,6 +144,18 @@ venv\Scripts\python.exe scripts\inspect_window.py     :: what each part of the p
 venv\Scripts\python.exe scripts\measure_window.py     :: where each column begins and how wide it is
 ```
 
+Two more answer *"is this file actually more even than it was"*, which no single peak figure can:
+
+```bat
+venv\Scripts\python.exe scripts\loudness_profile.py <source> <normalized>
+venv\Scripts\python.exe scripts\drive_sweep.py <source> --levels 0 12 24 36
+```
+
+`loudness_profile.py` reports the momentary loudness of every 100 ms of both files and the difference between
+them, so *"the quiet parts moved +6.3 dB and the loud parts +3.7"* is a sentence it prints rather than a claim
+somebody makes. `drive_sweep.py` runs the engine over a short excerpt at each drive value and reports how far
+each one closes the quiet-to-loud gap — that is how the table in `docs/TRUTH.md` §6b was produced.
+
 `inspect_window.py` is the one to reach for first. It reports the classes the interface is built from and
 each one's height, which distinguishes *"the layout is too big"* from *"the page is not the page you think"* —
 a distinction this build got wrong twice, and each time the symptom was a measurement that would not change

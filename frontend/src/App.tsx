@@ -3,9 +3,13 @@
  *
  * ## The shape of it
  *
- * A queue of files on the left, the settings that apply to all of them and the report for the one under
- * the cursor on the right, and a console across the bottom. Two columns and a band, and the frame never
- * scrolls — see `styles/app.css` for the frame and the arithmetic behind its minimum.
+ * The settings and the log on the left, the queue of files and the report for the one under the cursor on
+ * the right. Two columns, three strips — the title bar, the log's own header, the footer — and the frame
+ * never scrolls: see `styles/app.css` for the frame and the arithmetic behind its minimum.
+ *
+ * **The log is in the left column rather than across the bottom**, which is the correction to a band that
+ * had 128 px of a 720 px window for a run's every command and measurement: about four lines, immediately
+ * outgrown. Under the settings it has the space the settings do not use, which is several hundred pixels.
  *
  * ## The state, and why it is one reducer
  *
@@ -731,6 +735,14 @@ export function App() {
               {busy ? "Working…" : "Normalize"}
             </button>
           </div>
+
+          <Console
+            run={state.run}
+            log={state.log}
+            rows={state.rows}
+            elapsed={elapsed}
+            onClear={() => dispatch({ type: "cleared" })}
+          />
         </div>
 
         <div className="app__col app__col--queue">
@@ -748,13 +760,6 @@ export function App() {
         </div>
       </div>
 
-      <Console
-        run={state.run}
-        log={state.log}
-        rows={state.rows}
-        elapsed={elapsed}
-        onClear={() => dispatch({ type: "cleared" })}
-      />
 
       <footer className="footerline">
         <span className="footerline__item">
