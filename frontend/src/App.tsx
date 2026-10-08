@@ -33,7 +33,6 @@ import {
   listen,
   openMedia,
   reveal,
-  saveOutput,
   type EngineEvent,
   type Health,
   type NormalizeRequest,
@@ -293,8 +292,6 @@ export function App() {
   const [selected, setSelected] = useState<number | null>(null);
   /** Set when a run is in flight, so a settings change knows to say the queue is stale. */
   const [elapsed, setElapsed] = useState(0);
-  /** The one path the operator has named themselves, for the single-file case. */
-  const [outputOverride, setOutputOverride] = useState<string | null>(null);
   /** True while a file is being measured, so the button can say so. */
   const [measuring, setMeasuring] = useState(0);
 
@@ -453,13 +450,15 @@ export function App() {
         levels: probe.levels,
         output: probe.suggestedOutput,
       });
-      // Planned straight away, so the row shows a gain and any warnings before anything is pressed.
+      // Planned straight away, so the row shows the level and any cautions before anything is pressed.
+      // The levels the probe just measured travel with it, so the engine does not decode the file a
+      // second time to answer. The level and the limiter are one number — see `Settings`.
       const answer = await api.plan({
         sources: [path],
-        targetDbfs: wanted.targetDbfs,
+        targetDbfs: wanted.levelDbfs,
+        ceilingDbfs: wanted.levelDbfs,
         strategy: wanted.strategy,
-        makeupDb: wanted.makeupDb,
-        ceilingDbfs: wanted.ceilingDbfs,
+        makeupDb: wanted.driveDb,
         trimDb: wanted.trimDb,
         audio: wanted.audio,
         peakDbfs: probe.levels.peakDbfs === null ? "silence" : probe.levels.peakDbfs,
@@ -536,16 +535,14 @@ export function App() {
     // only — the engine measures any file whose level was not sent, which is what `peakDbfs` being absent
     // means — so a batch of forty is measured by the engine as it plans them rather than by forty round
     // trips from here.
-    const named = ready.length === 1 ? (outputOverride ?? undefined) : undefined;
-    const combined = requestOf([ready[0]!], settings, named);
+    // No named destination, ever: the output folder is the source folder — see `output_for` on the
+    // engine side and `stripOutput` below. One request, and the sources are the whole queue in order.
     const body: NormalizeRequest = {
-      ...combined,
+      ...stripOutput(requestOf([ready[0]!], settings)),
       sources: ready.map((row) => row.path),
     };
     try {
-      const answer = await api.start(
-        ready.length === 1 ? body : stripOutput(body),
-      );
+      const answer = await api.start(body);
       for (const job of answer.jobs) {
         jobIndex.current.set(job.job, job.index);
         jobLabel.current.set(job.job, nameOf(job.source));
@@ -559,7 +556,7 @@ export function App() {
     } catch (caught: unknown) {
       dispatch({ type: "notice", message: failureSentence(caught) });
     }
-  }, [outputOverride, settings]);
+  }, [settings]);
 
   const cancel = useCallback(async () => {
     try {
@@ -615,9 +612,12 @@ export function App() {
    * What `Start` is about to do, in the operator's own numbers.
    *
    * It is a sentence rather than a row of figures because it sits in front of the one decision in the
-   * window: a person reads "6 files · target −6.0 dBFS · sound rewritten, picture copied" and presses
-   * the button. When it cannot be pressed the sentence says what it is waiting for, which is the same
-   * sentence with a different first clause.
+   * window: a person reads it and presses the button. It names the level in dBFS *and* in the unit a
+   * person actually has an intuition for — "about half as loud as the loudest a file can be" is rough and
+   * it is the only thing on the panel that means anything to somebody who has never worked in dBFS.
+   *
+   * When the button cannot be pressed the sentence says what it is waiting for, which is the same sentence
+   * with a different first clause.
    */
   const stateSentence = (() => {
     if (measuring > 0) {
@@ -630,11 +630,13 @@ export function App() {
       return "Nothing here can be normalized: every file was refused.";
     }
     const first = state.rows[0]?.plan;
-    const target = first === undefined || first === null ? "" : ` · target ${first.targetText}`;
-    const copies = first?.keepsPicture === false ? " · sound only" : " · picture copied, sound rewritten";
+    const keeps = first === undefined || first === null ? "" : first.keepsPicture ? ", picture copied" : "";
     const extras =
-      settings.audio.length === 0 ? "" : ` · also writing ${settings.audio.join(" and ")}`;
-    return `${startable.length} file${startable.length === 1 ? "" : "s"}${target}${copies}${extras}`;
+      settings.audio.length === 0 ? "" : `, and the sound as ${settings.audio.join(" and ")}`;
+    return (
+      `${startable.length} file${startable.length === 1 ? "" : "s"} out at ` +
+      `${settings.levelDbfs.toFixed(1)} dBFS${keeps}, beside each original${extras}.`
+    );
   })();
 
   return (
@@ -664,33 +666,25 @@ export function App() {
       </header>
 
       <div className="app__body">
-        <div className="app__col app__col--queue">
-          <QueueTable
-            rows={state.rows}
-            selected={selectedRow?.key ?? null}
-            onSelect={setSelected}
-            onRemove={(key) => dispatch({ type: "removed", keys: [key] })}
-            onAdd={() => void browse()}
-            onReveal={showInExplorer}
-            counts={counts}
-            measuring={measuring > 0}
-          />
-          <ReportPanel row={selectedRow} onReveal={showInExplorer} />
-        </div>
-
+        {/*
+          The controls come first in the DOM as well as on the screen. That is not decoration: a grid
+          places its children in source order, so a column reordered by CSS alone would put the *reading*
+          order — the order a screen reader and the Tab key follow — out of step with the layout. Which
+          is exactly what happened: the stylesheet was flipped to put the settings on the left and the
+          DOM was left with the queue first, so the two disagreed and the settings rendered on the right.
+        */}
         <div className="app__col app__col--form">
           <SettingsPanel
             settings={settings}
-            onChange={setSettings}
             onChangeApplied={(next) => {
               setSettings(next);
-              // Re-plan the file the operator is looking at, so the gain and the warnings on screen are
+              // Re-plan the file the operator is looking at, so the level and the cautions on screen are
               // the ones the next run would use. One request, for one file: forty files is forty decodes,
               // and the engine does that when the run starts.
               const row = selectedRow;
               if (row !== null && row.media !== null) {
                 void api
-                  .plan(requestOf([row], next, outputOverride ?? undefined))
+                  .plan(requestOf([row], next))
                   .then((answer) =>
                     dispatch({
                       type: "planned",
@@ -706,16 +700,6 @@ export function App() {
             }}
             health={health}
             busy={busy}
-            output={outputOverride}
-            onPickOutput={async () => {
-              const row = selectedRow;
-              const suggested = outputOverride ?? row?.output ?? "";
-              const chosen = await saveOutput(suggested);
-              if (chosen !== null) {
-                setOutputOverride(chosen);
-              }
-            }}
-            onClearOutput={() => setOutputOverride(null)}
           />
 
           <div className="actions">
@@ -741,6 +725,20 @@ export function App() {
               {busy ? "Working…" : "Normalize"}
             </button>
           </div>
+        </div>
+
+        <div className="app__col app__col--queue">
+          <QueueTable
+            rows={state.rows}
+            selected={selectedRow?.key ?? null}
+            onSelect={setSelected}
+            onRemove={(key) => dispatch({ type: "removed", keys: [key] })}
+            onAdd={() => void browse()}
+            onReveal={showInExplorer}
+            counts={counts}
+            measuring={measuring > 0}
+          />
+          <ReportPanel row={selectedRow} onReveal={showInExplorer} />
         </div>
       </div>
 

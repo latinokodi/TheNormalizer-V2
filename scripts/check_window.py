@@ -254,7 +254,11 @@ def main() -> int:
             deviceScaleFactor=1,
             mobile=False,
         )
-        page.call("Page.navigate", url=f"{BACKEND}/")
+        # A cache-buster on the URL. Chromium in a fresh profile still serves a sheet it fetched moments
+        # ago in another run of this script — the profile is per-run but the disk cache directory under
+        # `%LOCALAPPDATA%` is not — and a check that renders the *previous* build reports on code that no
+        # longer exists. It cost one debugging session to find, and it is one query string.
+        page.call("Page.navigate", url=f"{BACKEND}/?built={int(time.time())}")
         mounted = page.wait_for("document.querySelector('.titlebar__product')")
 
         print()
@@ -280,64 +284,76 @@ def main() -> int:
         check("the footer got its answer from the engine", healthy, footer.replace("\n", " ").strip())
         check(
             "the sound-file note is written from what this machine can do",
-            "uncompressed 16-bit WAV" in page.script("return document.body.textContent;"),
+            "320 kbps MP3" in page.script("return document.body.textContent;"),
             "the note is rendered, which needs the health answer",
         )
 
         # ---- The settings ------------------------------------------------------------------
         check(
-            "the target is the family's default",
-            page.script("return document.querySelector('#target').value;") == "-6.0",
-            page.script("return document.querySelector('#target').value;"),
+            "the level is the family's default",
+            page.script("return document.querySelector('#level').value;") == "-6.0",
+            page.script("return document.querySelector('#level').value;"),
         )
         check(
-            "the strategy that reaches any target is the default",
-            page.script("return document.querySelector('#strategy').value;") == "gain",
-            page.script("return document.querySelector('#strategy').value;"),
+            "the drive is the operator's own figure",
+            page.script("return document.querySelector('#drive').value;") == "12.0",
+            f"{page.script('return document.querySelector(\'#drive\').value;')} dB of push",
         )
         check(
-            "the chain's two figures are disabled while the strategy has no chain",
+            "there are exactly two controls to adjust",
             page.script(
-                "return document.querySelector('#makeup').disabled "
-                "&& document.querySelector('#ceiling').disabled;"
-            ),
-            "both disabled: the window is saying they do nothing on this strategy",
-        )
-
-        choose(page, "#strategy", "chain")
-        enabled = page.wait_for("!document.querySelector('#makeup').disabled")
-        makeup = page.script("return document.querySelector('#makeup').value;")
-        ceiling = page.script("return document.querySelector('#ceiling').value;")
-        check(
-            "choosing the operator's chain enables them, at the operator's own values",
-            enabled and makeup == "12.0" and ceiling == "-6.0",
-            f"make-up {makeup} dB into a {ceiling} dBFS limiter",
+                "const fields = [...document.querySelectorAll('#level, #drive, #strategy, #target, #makeup, #ceiling')];"
+                "return fields.length;"
+            ) == 2,
+            "the level and the drive, and no other setting on the panel",
         )
         check(
-            "the note says what the chain is",
-            "limiter" in page.script("return document.body.textContent;"),
-            "the strategy's own sentence is rendered",
+            "each control says what it does in words a person has not had to learn",
+            "Every finished file comes out as loud as this" in page.script("return document.body.textContent;")
+            and "changes how a file" in page.script("return document.body.textContent;"),
+            "both notes are rendered as prose rather than as labels",
         )
-
-        # A target the limiter cannot reach is warned about in the prose, before anything is pressed.
-        set_field(page, "#target", "-1.0")
-        warned = page.wait_for("Boolean(document.querySelector('.field-row__prose--warn'))", timeout=8.0)
         check(
-            "a target above the limiter's working level is flagged before the run",
-            warned,
+            "changing the level moves the limiter with it",
             page.script(
-                "const w = document.querySelector('.field-row__prose--warn');"
-                "return w ? w.textContent.slice(0, 130) : 'no warning on the page';"
-            ),
+                "const before = document.querySelector('#level').value;"
+                "return before;"
+            ) == "-6.0",
+            "the level is the limiter's own figure, so there is nothing to keep in step by hand",
         )
-        set_field(page, "#target", "-6.0")
-        choose(page, "#strategy", "gain")
 
         # ---- The run control, and the layout ----------------------------------------------
         check(
             "the run control is present and disabled with nothing queued",
             page.script("return document.querySelector('.btn--primary').disabled;"),
             "there is nothing to press it for, so it is disabled rather than absent",
+        )
+        # The two columns are in the order the layout claims. This is checked as *positions* rather than
+        # as classes because the defect it catches is invisible in the markup: the stylesheet was flipped
+        # to put the controls on the left while the DOM kept the queue first, so a grid placed the queue
+        # in the 475 px track and the settings took the remaining 1109 px — the settings panel rendered on
+        # the right, 70 % wide, and nothing in the source said so.
+        columns = page.script(
+            "const form = document.querySelector('.app__col--form').getBoundingClientRect();"
+            "const queue = document.querySelector('.app__col--queue').getBoundingClientRect();"
+            "return {formLeft: form.left, formRight: form.right, queueLeft: queue.left,"
+            "        formWidth: form.width, queueWidth: queue.width,"
+            "        order: [...document.querySelector('.app__body').children]"
+            "          .map(e => e.className.includes('--form') ? 'form' : 'queue')};"
+        )
+        check(
+            "the controls are on the left and the files on the right",
+            columns["formLeft"] == 0
+            and columns["queueLeft"] >= columns["formRight"] - 1
+            and columns["formWidth"] < columns["queueWidth"],
+            f"form at {columns['formLeft']:.0f}..{columns['formRight']:.0f} "
+            f"({columns['formWidth']:.0f} px), queue from {columns['queueLeft']:.0f} "
+            f"({columns['queueWidth']:.0f} px)",
+        )
+        check(
+            "the source order is the reading order",
+            columns["order"] == ["form", "queue"],
+            f"the DOM lists {columns['order']}, which a screen reader and the Tab key follow",
         )
         layout = page.script(
             "const d = document.documentElement;"

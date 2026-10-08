@@ -21,17 +21,21 @@ Feature: the window
     And the interface performs no arithmetic on levels, durations or frame counts
     Because a number derived twice is a number that can disagree with itself
 
-  Scenario: the chain's figures are disabled where there is no chain
-    Given the strategy that has no chain
-    When the settings are drawn
-    Then the drive and the ceiling are disabled
-    And choosing the operator's chain enables them at the operator's own values
+  Scenario: there are exactly two controls
+    Given the window with nothing queued
+    Then the level and the drive are the only settings on the panel
+    Because a field that is not a decision is a question the operator has to answer or ignore
 
-  Scenario: a target the chain cannot reach is flagged before the run
-    Given the operator's chain and a target above its limiter's working level
-    When the target is set
-    Then the prose under the strategy says what the chain can reach
-    And it is drawn as a caution rather than as a value
+  Scenario: each control says what it does in words that need no glossary
+    Given the level and the drive
+    Then each carries a sentence saying what changing it will do
+    And neither is labelled with a term a person has to look up
+
+  Scenario: the level and the limiter are one number
+    Given the level set to any value
+    When the request is built
+    Then the target and the limiter carry that one value
+    Because two fields for one decision is two chances to disagree about it
 
   Scenario: the interface refuses a choice the machine cannot serve
     Given a machine whose ffmpeg has no MP3 encoder
@@ -39,6 +43,12 @@ Feature: the window
     Then the MP3 box is disabled
     And the format is dropped where the request is built
     Because disabling a control does not stop the state from holding the choice
+
+  Scenario: the controls are on the left and the files on the right
+    Given the window is drawn
+    Then the settings column begins at the left edge
+    And the file column begins where the settings column ends
+    And the source order is the same order, so the reading order matches the layout
 
   Scenario: nothing scrolls and nothing clips at the declared minimum
     Given a window at its declared minimum

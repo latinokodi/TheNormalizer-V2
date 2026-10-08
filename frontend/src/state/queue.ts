@@ -94,25 +94,47 @@ export interface LogLine {
   readonly text: string;
 }
 
-/** What the operator chose. Every one of these travels with a request. */
+/**
+ * What the operator chose.
+ *
+ * ## Two of these are controls and the rest are constants, on purpose
+ *
+ * The window shows **`levelDbfs`** and **`driveDb`** and nothing else. Everything below them is fixed
+ * because it is not a decision an operator normalizing an episode's worth of files should be making:
+ *
+ * * `strategy` is the operator's chain, because that is the sound this family's episodes have and the
+ *   window has no business asking a question whose answer is always the same;
+ * * `targetDbfs` **is** `levelDbfs`. They are one number: the level the finished file peaks at is the
+ *   level the limiter is set to, so showing both would be two fields for one decision — and the second
+ *   one would be the one nobody understood;
+ * * `ceilingDbfs` is the limiter, and it is the same number again for the same reason;
+ * * `trimDb` is zero. It existed for matching how loud two files *feel* rather than how loud they peak,
+ *   which is a real thing and not what this window is for;
+ * * `audio` is empty. The sound files are a deliberate extra, and they are still offered — as two
+ *   checkboxes under the one control that produces them, not as a third setting.
+ */
 export interface Settings {
-  readonly targetDbfs: number;
+  /** The peak every finished file will have, in dBFS. The one number the operator is choosing. */
+  readonly levelDbfs: number;
+  /** How hard the material is driven into the limiter, in decibels. */
+  readonly driveDb: number;
   readonly strategy: Strategy;
-  /** The drive into the chain, in decibels. See `NormalizeSpec.makeup_db`. */
-  readonly makeupDb: number;
-  /** The chain's limiter ceiling, in dBFS. */
-  readonly ceilingDbfs: number;
-  /** Applied after the target. For matching how loud two files feel rather than how loud they peak. */
   readonly trimDb: number;
   /** The extra sound files to write beside each master. */
   readonly audio: readonly (".wav" | ".mp3")[];
 }
 
+/**
+ * What the window opens with.
+ *
+ * `levelDbfs: −6.0` is where a stitched episode sits, so a file normalized here sits beside one.
+ * `driveDb: +12` is the operator's own make-up figure, and it is what makes the chain a chain: with no
+ * drive the limiter never engages and the control does nothing.
+ */
 export const DEFAULT_SETTINGS: Settings = {
-  targetDbfs: -6.0,
-  strategy: "gain",
-  makeupDb: 12.0,
-  ceilingDbfs: -6.0,
+  levelDbfs: -6.0,
+  driveDb: 12.0,
+  strategy: "chain",
   trimDb: 0.0,
   audio: [],
 };
@@ -132,10 +154,11 @@ export function requestOf(
   const first = rows[0];
   const body: NormalizeRequest = {
     sources: rows.map((row) => row.path),
-    targetDbfs: settings.targetDbfs,
+    // One number for the level and the limiter, and the chain is the sound: see `Settings`.
+    targetDbfs: settings.levelDbfs,
+    ceilingDbfs: settings.levelDbfs,
     strategy: settings.strategy,
-    makeupDb: settings.makeupDb,
-    ceilingDbfs: settings.ceilingDbfs,
+    makeupDb: settings.driveDb,
     trimDb: settings.trimDb,
     audio: settings.audio,
   };

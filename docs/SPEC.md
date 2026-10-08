@@ -124,12 +124,16 @@ against the muxer that was asked for. *Check:* `test_plan.py::test_the_muxer_is_
 | Strategy | What happens to the sound | What it can reach |
 |---|---|---|
 | `gain` (**default**) | one fader, and nothing else | any target |
-| `chain` | the operator's Premiere Track Fx at the ceiling named | the limiter's own level, at most |
+| `chain` | the operator's Premiere Track Fx, plus the out fader that puts its output on the target | any target |
 | `ceiling` | the fader, then a limiter at the target | any target, without clipping on the way |
 
-`gain` is the default because a limiter is a ceiling and a chain containing one cannot deliver an arbitrary
-target. *Check:* `test_plan.py::test_the_default_strategy_reaches_any_target`,
-`test_server.py::test_the_plan_names_the_output_the_container_and_the_gain`.
+**Every strategy reaches every target**, and it did not used to: a limiter clamps material driven into it to
+a level of its own, below the ceiling it names and dependent on the drive, so a chain run could only deliver
+what its limiter happened to land on. The run now measures the chain and corrects it with a fader *after* the
+limiter — see `docs/DESIGN.md` §2.5 for the three measurements and the two designs that got it wrong.
+*Check:* `test_plan.py::test_the_default_strategy_reaches_any_target`,
+`test_server.py::test_the_stage_and_master_passes_are_one_operating_point`,
+`scripts/check_normalize.py`.
 
 **R9 — The chain's two figures are the operator's, and they reach ffmpeg as the units ffmpeg wants.**
 The drive is the fader **in front of** the chain, not `acompressor`'s `makeup` — which is a multiplier with
@@ -139,9 +143,12 @@ amplitude the option wants. Both are reported in the plan, in the operator's own
 `test_plan.py::test_the_compressor_s_makeup_is_left_at_unity_and_the_drive_is_the_fader`,
 `::test_the_limiter_s_automatic_level_is_off`, `scripts/check_normalize.py` (*+12 dB is `makeup=3.9812`*).
 
-**R10 — A target the chain cannot reach is named before the run, not found in the file.**
-A limiter clamps material driven into it to about three decibels under the nominal ceiling, so a target
-above that is a target the chain cannot deliver. The plan carries it as a caution. *Check:*
+**R10 — A target that needs more headroom than the ceiling allows is named before the run.**
+A limiter clamps material driven into it to about three decibels under the nominal ceiling. The out fader
+closes the gap *downwards* — it can only lift what the limiter delivered, never past full scale — so a target
+more than three decibels above the ceiling is one the chain cannot reach, and the plan says so. With the
+level and the limiter as one number (R27) that cannot arise from the window; it is a caution for a caller
+that sets them apart. *Check:*
 `test_plan.py::test_a_target_the_limiter_cannot_reach_is_a_caution_before_the_run`.
 
 **R11 — The sound's rate and channel count are the source's.**
@@ -240,21 +247,39 @@ no frame count. What the interface computes is presentation — a byte count as 
 interface's own tests (`format.test.ts`, `queue.test.ts`) assert that the four conversions it owns are
 conversions and nothing more.
 
-**R26 — The window states what the run will do before the button is pressed, and says so when the queue is
-stale.**
-The selected file's panel shows the measured level, the planned gain, the container, the filtergraph that
-will be applied and every caution, and changing a setting re-plans it. *Check:*
-`scripts/check_window.py` (a real browser: the chain's figures enable, and a target above the limiter's
-working level is flagged).
+**R26 — The window is two controls, and each one says what it does in words that do not have to be looked
+up.**
+**Level** is the peak every finished file will have; **Drive** is how hard the sound is pushed into the
+limiter. Everything else the engine accepts is either fixed at the value this product is for — the strategy,
+the trim — or is not a decision the operator is making — a named destination, a bitrate. *Check:*
+`scripts/check_window.py` asserts that exactly two of the level, drive, strategy, target, make-up and
+ceiling fields exist on the page, and that each carries its prose. *Rationale:* a field whose label has to
+be looked up is a field that gets left alone (feedback from the first use of the window).
 
-**R27 — A checkbox asks for what this machine can actually write, and a disabled control is not a choice
+**R27 — The level and the limiter are one number.**
+They were two fields for one decision. They travel as `targetDbfs` and `ceilingDbfs` from a single
+`levelDbfs`, so the request cannot be built with them out of step. *Check:*
+`queue.test.ts::sends one number as both the level and the limiter`.
+
+**R28 — The output folder is the source folder.**
+A normalized copy is written beside its source, and a batch of any length is written that way: there is no
+field, no dialog and no reset for it, because there was one and nobody was making that decision. The
+report still states the path the engine will write. *Check:* `test_server.py::test_a_batch_of_several_files_given_one_output_path_is_refused`,
+`test_plan.py::test_the_container_replaces_the_extension_and_never_the_stem`.
+
+**R29 — The settings are on the left, and the source order is the reading order.**
+The column that holds the decision comes first on the screen and first in the DOM, so what a screen reader
+and the Tab key follow is what the layout shows. *Check:* `scripts/check_window.py` measures both columns'
+positions and asserts the DOM lists them in the same order.
+
+**R30 — A checkbox asks for what this machine can actually write, and a disabled control is not a choice
 that travels.**
 `GET /api/health` reports whether this machine's ffmpeg has an MP3 encoder; without it the box is disabled.
 A health answer that has not arrived claims nothing: the box lives until the machine says otherwise.
 *Check:* `test_server.py::test_health_names_this_product`,
 `scripts/check_window.py::the sound-file note is written from what this machine can do`.
 
-**R28 — The window offers only the sound files the run wrote.**
+**R31 — The window offers only the sound files the run wrote.**
 The reveal buttons are built from `outcome.audioWritten`, which is the engine's list of files *this run*
 wrote — not from the plan's paths, which is what would offer an older file when the exports were skipped.
 *Check:* `test_plan.py::test_an_occupied_sound_name_is_skipped_with_a_reason`.
@@ -291,8 +316,11 @@ wrote — not from the plan's paths, which is what would offer an older file whe
 | R24 | `test_server.py::test_the_batch_reports_a_job_per_file_when_it_finishes` |
 | R25 | review of `api.ts` against `server.py`; `format.test.ts`, `queue.test.ts` |
 | R26 | `scripts/check_window.py` |
-| R27 | `test_server.py::test_health_names_this_product`, `scripts/check_window.py` |
-| R28 | `test_plan.py::test_an_occupied_sound_name_is_skipped_with_a_reason` |
+| R27 | `queue.test.ts::sends one number as both the level and the limiter` |
+| R28 | `test_server.py::test_a_batch_of_several_files_given_one_output_path_is_refused` |
+| R29 | `scripts/check_window.py` (both columns' positions, and the DOM order) |
+| R30 | `test_server.py::test_health_names_this_product`, `scripts/check_window.py` |
+| R31 | `test_plan.py::test_an_occupied_sound_name_is_skipped_with_a_reason` |
 
 ---
 

@@ -48,8 +48,16 @@ describe("requestOf", () => {
     const body = requestOf([aRow()], DEFAULT_SETTINGS);
     expect(body.sources).toEqual(["C:\\media\\talk.wav"]);
     expect(body.targetDbfs).toBe(-6.0);
-    expect(body.strategy).toBe("gain");
+    expect(body.strategy).toBe("chain");
     expect(body.audio).toEqual([]);
+  });
+
+  it("sends one number as both the level and the limiter", () => {
+    // They are the same decision: the level a finished file peaks at is the level the limiter is set to.
+    // Two fields for one number is two chances to disagree about it.
+    const body = requestOf([aRow()], { ...DEFAULT_SETTINGS, levelDbfs: -3.0 });
+    expect(body.targetDbfs).toBe(-3.0);
+    expect(body.ceilingDbfs).toBe(-3.0);
   });
 
   it("carries the level the engine already measured, so a settings change costs no decode", () => {

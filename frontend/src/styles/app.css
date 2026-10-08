@@ -20,20 +20,26 @@
  *
  * ```
  * ┌ title bar ───────────────────────────────────────────────────────────── 34 ┐
- * ├────────────────────────────────────────┬───────────────────────────────────┤
- * │ THE QUEUE (scrolls)                    │ LEVEL  target · make-up · ceiling │
- * │  talk.mp4   -27.1 -> -6.0    Done      │        strategy · sound files      │
- * │  music.wav  -14.2 -> -6.0    Running   │ ── what it will do ── [Start]      │
- * │                                        ├───────────────────────────────────┤
- * │                                        │ THE FILE  facts · notes · checks   │
- * │                                        │  (scrolls)                         │
- * ├────────────────────────────────────────┴───────────────────────────────────┤
- * │ PROGRESS: bar · stage · file 3 of 7 · elapsed · left                       │
- * │ LOG (scrolls internally, newest first)                                     │
+ * ├──────────────────────┬─────────────────────────────────────────────────────┤
+ * │ LEVEL                │ THE QUEUE (scrolls)                                │
+ * │  level · sound files │  talk.mp4   -27.1 -> -6.0    Done                  │
+ * │ DRIVE                │  music.wav  -14.2 -> -6.0    Working               │
+ * │  how hard it pushes  │                                                     │
+ * │ ── what it will do ──├─────────────────────────────────────────────────────┤
+ * │      [Normalize]     │ THE FILE  facts · graph · checks · cautions (scrolls)│
+ * ├──────────────────────┴─────────────────────────────────────────────────────┤
+ * │ PROGRESS: bar · stage · file 3 of 7 · elapsed          min 190, max 46%    │
+ * │ LOG (scrolls internally, newest first)                                      │
  * ├────────────────────────────────────────────────────────────────────────────┤
- * │ ffmpeg lamp · files queued · product                                      │
+ * │ ffmpeg lamp · files queued · product                                     26│
  * └────────────────────────────────────────────────────────────────────────────┘
  * ```
+ *
+ * **The controls are on the left and the files are on the right**, which is the second arrangement of
+ * these two columns: with the settings against the right edge the eye had to travel to the far corner to
+ * find the thing it came for and back to the middle to read the files. Reading runs left to right, so the
+ * decision comes first.
+ * * ```
  *
  * The left column is the queue, because this product's unit of work is a *batch*: an operator adds an
  * episode's worth of files and watches them go. The right column is what the run will do and what it did
@@ -83,14 +89,33 @@
 
 .app {
   display: grid;
-  /* title bar · body · the console band · footer. The console's 200 px is declared rather than derived:
-     a log's length is the one genuinely arbitrary thing in this window, so what is declared is the
-     smallest band that still shows a run's last several lines without being scrolled. */
+  /*
+   * title bar · body · console · footer.
+   *
+   * **The console is `auto`, with a floor and a ceiling, and the body takes everything left over.**
+   *
+   * The history of these four rows is worth keeping, because each version failed differently and only the
+   * third is not a hole somewhere:
+   *
+   *   1. the body on `1fr` with every zone inside it growing — two zones holding one field each stretched
+   *      to half the window: two large blank panels under two small controls;
+   *   2. `auto` for the body, which fixed that and moved the hole into the **log**. A log is empty until
+   *      something has run, so a band sized as a share of the window reserves half the screen for nothing,
+   *      and an empty screen is what the first two attempts after this were;
+   *   3. this one. The console is as tall as what it has to say — the progress strip, the failure if there
+   *      is one, and the lines themselves — with a floor of 190 px. Its ceiling is on the **log** rather
+   *      than on the row (`.log` below), because a grid track cannot be "as tall as its content but no
+   *      more than this": `minmax(190px, 46%)` is a share of the window and `min(auto, 46%)` is not valid
+   *      CSS at all — the second of those was written first and silently dropped the whole declaration.
+   *
+   * So an idle window is all controls and files with a one-line log under them, and a run with three
+   * hundred lines of console fills the band to the log's own ceiling and scrolls inside it.
+   */
   grid-template-rows:
-    var(--titlebar-height)
+    minmax(var(--titlebar-height), auto)
     minmax(0, 1fr)
-    minmax(190px, 0.28fr)
-    var(--footer-height);
+    minmax(var(--console-floor), auto)
+    minmax(var(--footer-height), auto);
   height: 100%;
   overflow: hidden;
   background: var(--substrate-000);
@@ -105,14 +130,21 @@
   display: flex;
   align-items: center;
   gap: var(--space-5);
+  /*
+   * `min-height` and not `height`: it is a grid child in a row sized `minmax(34px, auto)`, and a row that
+   * can grow is a row that will also let its content decide. Stating the minimum is what keeps a bar whose
+   * content is one line of text from being a bar with no bar in it — which is exactly what happened when
+   * this block was lost for one build.
+   */
+  min-height: var(--titlebar-height);
   padding: 0 var(--space-5);
   background: var(--substrate-300);
   border-bottom: var(--hairline) solid var(--rule-strong);
 }
 
 /*
- * The mark is a filled block with the product's initial reversed out of it. No logo file and no icon
- * font — and it is light rather than coloured, because the accent in this application means "this is the
+ * The mark is a filled block with the product's initial reversed out of it. No logo file and no icon font
+ * — and it is light rather than coloured, because the accent in this application means "this is the
  * action" and the mark is not an action.
  */
 .titlebar__mark {
@@ -158,13 +190,11 @@
   background: var(--rule);
 }
 
-/* ==========================================================================================
-   The body: the queue, and what will be done to it
-   ========================================================================================== */
-
 .app__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--form-panel-width);
+  grid-template-columns: var(--form-panel-width) minmax(0, 1fr);
+  /* It fills the share the frame gave it, and `min-height: 0` is what lets a column inside it scroll
+     rather than push the body taller. */
   min-height: 0;
   overflow: hidden;
 }
@@ -186,20 +216,23 @@
 .app__col--form {
   overflow-y: auto;
   background: var(--substrate-200);
-  border-left: var(--hairline) solid var(--rule-strong);
+  border-right: var(--hairline) solid var(--rule-strong);
 }
 
 /*
- * Every form zone grows by the same amount, and none of them shrinks.
+ * The settings zones are as tall as what is in them, and the action bar sits directly under the last one.
  *
- * A single growing zone is a hole: the leftover height all lands inside one compartment, at the bottom of
- * its body, and reads as a mistake. Sharing it out gives each compartment the same extra air.
+ * The first version shared the leftover height out between every zone so that none of them was a hole —
+ * which is right when the zones are full of controls and wrong when there are two of them. Two fields
+ * inside two panels stretched to half the window is two large blank boxes, and a blank box under a
+ * control reads as a page that failed to load.
  *
- * `flex-shrink: 0` rather than `1`: a zone that shrinks below its content does not clip, it *overlaps* the
- * zone under it, and no browser reports that.
+ * `flex: 0 0 auto` for the zones, and the leftover height goes to a spacer below the action bar rather
+ * than above it: the button belongs at the foot of the controls it acts on, not floating in the middle of
+ * the column with a gap under it.
  */
 .app__col--form > .zone {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
 }
 
 /*
@@ -210,7 +243,10 @@
  */
 .app__col--queue {
   display: grid;
-  grid-template-rows: minmax(calc(var(--strip-height) + var(--row-height) * 6), 1fr) minmax(0, 1.1fr);
+  /* Five rows of floor rather than six: the queue is one of two things in this column now, and a floor
+     that pushed the report's checks off the bottom was the reason the first layout felt empty — the space
+     was being held for rows that were not there. */
+  grid-template-rows: minmax(calc(var(--strip-height) + var(--row-height) * 5), 1fr) minmax(0, 1fr);
   background: var(--substrate-100);
 }
 
@@ -875,11 +911,16 @@ input::placeholder {
 .actions {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
   flex: none;
   min-height: var(--action-bar-height);
+  /*
+   * Pushed to the foot of the column, under a spacer the frame inserts above it. The button belongs at the
+   * bottom of the controls it acts on — floating in the middle of the column with a gap under it is what a
+   * panel looks like when nobody finished it.
+   */
   margin-top: auto;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
   background: var(--substrate-300);
   border-top: var(--hairline) solid var(--rule-strong);
 }
@@ -1069,6 +1110,13 @@ input::placeholder {
 .log {
   flex: 1 1 auto;
   min-height: 0;
+  /*
+   * The band's real ceiling. A grid row cannot express "as tall as its content but no more than this", so
+   * the row is `auto` with a floor and the limit lives here: everything the window height has above the
+   * bars and a body worth having. On a 1000 px window that is 560 px of log at most, which is far more
+   * than a run needs to be read and leaves the file list the majority of the screen.
+   */
+  max-height: calc(100vh - var(--titlebar-height) - var(--footer-height) - 380px);
   overflow-y: auto;
   padding: var(--space-4) var(--space-5);
   background: var(--substrate-000);
@@ -1147,6 +1195,7 @@ input::placeholder {
   display: flex;
   align-items: center;
   gap: var(--space-5);
+  min-height: var(--footer-height);
   padding: 0 var(--space-5);
   background: var(--substrate-300);
   border-top: var(--hairline) solid var(--rule-strong);

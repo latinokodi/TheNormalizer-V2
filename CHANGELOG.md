@@ -2,7 +2,77 @@
 
 ## [Unreleased]
 
-### Added
+### Changed — feedback from the first use of the window
+
+- **The window is two controls, and both of them say what they do.** It was five fields named the way an
+  engineer names them — *Target*, *Sound*, *Make up*, *Limiter* — and that is a panel a person who has not
+  sat in front of a mixing desk cannot use. A field whose label has to be looked up is a field that gets
+  left alone, and four of the five were not decisions this product's operator is making. What is left is
+  **Level** (the peak every finished file will have) and **Drive** (how hard the sound is pushed into the
+  limiter), each with a sentence under it saying what changing it will sound like in plain words.
+- **The level and the limiter are one number.** They were two fields for one decision, which is two
+  chances to disagree about it and a second thing to understand. `Settings.levelDbfs` now travels as both
+  `targetDbfs` and `ceilingDbfs`, and the request cannot be built with them out of step.
+- **The strategy is not a control.** It was a select with three options; the window now always uses the
+  operator's chain, because that is the sound this family's episodes have and asking a question whose
+  answer is always the same is not a feature.
+- **The output folder is gone as a control, because it is always the source folder.** A `Choose…` button,
+  a read-only path field and a `Beside source` reset were three pieces of interface for a decision nobody
+  was making: `run_normalize` writes `<name> - normalized.<ext>` beside the source, and the one exception
+  — naming a destination for a single file — is not worth a row on a panel this size. The batch rule is
+  the only rule now, and the report still states the path the engine will write.
+- **The settings moved to the left and the files to the right.** The controls were against the right edge,
+  which made the eye travel to the far corner to find the thing it came for and back to the middle to read
+  the files. Reading runs left to right, so the decision comes first. The DOM had to move with the
+  stylesheet: a grid places its children in source order, and flipping only the CSS would have put the
+  reading order — what a screen reader and the Tab key follow — out of step with the layout.
+- **The empty space is mostly gone.** Each of the three attempts at it failed differently and all three
+  are written down in `styles/app.css` beside the rule that settled it: zones stretched to share the
+  window height, which is right when the zones are full of controls and wrong when there are two of them;
+  then a log band sized as a share of the window, which reserves half the screen for a log that has said
+  nothing yet. The console is now as tall as what it has to say, with a floor and a ceiling of its own, and
+  everything it does not use goes to the file list.
+
+### Fixed — the chain could not reach a target its limiter had not landed on
+
+- **A `chain` run now delivers the level it was asked for.** The operator's chain ends in a limiter, and a
+  limiter clamps material driven into it to a level of its *own* — below the ceiling it names and dependent
+  on the drive. Measured on a −2.0 dBFS source through +12 dB of make-up: a −6.0 dBFS ceiling delivered
+  −5.10, a −3.0 ceiling delivered −8.10, and a −1.0 ceiling delivered −10.10. There is no formula for
+  that, so the run measures it in the stage pass like everything else about the chain, and a new **out
+  fader** — after the limiter, the one place this product puts a gain there — is what the measurement buys.
+  It is safe in that position because the limiter has already bounded what reaches it.
+- **The correction for a chain run was being applied in front of the limiter, where it does nothing.** The
+  residual was folded into the front gain, and a gain in front of a limiter is not a correction, it is a
+  change of drive — so every file came out a decibel low with the out fader computed correctly on paper and
+  the drive quietly absorbing it. The master's front gain is now the stage's own, unchanged, which is also
+  what keeps the two passes at the one operating point the measurement depends on.
+- **The peak tolerance is 1.5 dB rather than 1.0**, and the number is measured rather than chosen: the
+  chain's out fader is derived from a measurement taken *before* the master's encode, so a chain run
+  carries one AAC overshoot of error plus that unmeasured term. Thirty-six combinations of four source
+  levels, three drives and three ceilings: the worst was 1.30 dB, on material so quiet and so lightly
+  driven that the limiter never engaged, and most rows were exact.
+
+### Fixed — the browser check was reporting on a build that no longer existed
+
+- **Chromium serves a stylesheet it fetched moments ago even in a fresh profile**, because the disk cache
+  under `%LOCALAPPDATA%` is per-machine rather than per-run. `scripts/check_window.py` renders
+  `/?built=<timestamp>` now. It cost one debugging session: a layout fix appeared not to work, and the
+  screenshot was byte-identical to the previous one.
+- **`.gitignore` was rewritten for this project.** It was the sibling's, and it named that project's
+  artefacts: a `pyflakes` launch that does not happen, a `thenormalizer-*` temp directory the engine does
+  not use, a `*.trimmerproj` rule for a file this product has never written, and an exception at the end
+  for two subscribe bumpers that are not here. Every rule in the file now names something this tree
+  actually produces, and the media block gained the output names a run writes — `* - normalized.*`,
+  `*.part.*` and `.normalize-*/` — because the product writes beside its source by design and a source
+  inside the checkout is one `git add -A` from a history nobody can shrink.
+- **`scripts/check_window.py` grew three claims and `scripts/measure_window.py` exists.** The check now
+  asserts where each column *is* rather than which classes it has — the defect it catches, the settings
+  rendering 70 % wide on the right, is invisible in the markup — and that the source order is the reading
+  order. `measure_window.py` was written because a screenshot at a non-integer scale factor is a poor
+  instrument for a question a number answers exactly, and because that defect was being read off one.
+
+### Added — the first release
 
 - The whole product. TheNormalizer-V2 was cloned from **TheStitcher-v2** for its shell, its design tokens
   and its proven media-layer idioms, and the engine was written for this domain.

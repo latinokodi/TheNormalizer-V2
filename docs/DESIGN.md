@@ -107,7 +107,36 @@ want:    decoded(B) = t
 
 The correction is therefore a measurement of *this material through this codec*, not a model of a codec.
 
-### 2.5 ffmpeg's WAV muxer accepts a codec the container cannot frame
+### 2.5 A limiter's output is not its ceiling, and not computable
+
+The operator's chain ends in a limiter, so the chain's output level is a property of the *limiter* rather
+than of the settings. Measured on a −2.0 dBFS source through the operator's +12 dB of make-up:
+
+| `limit` | what the chain delivered |
+|---|---|
+| −6.0 dBFS (`0.5012`) | **−5.10 dBFS** |
+| −3.0 dBFS (`0.7079`) | **−8.10 dBFS** |
+| −1.0 dBFS (`0.8913`) | **−10.10 dBFS** |
+
+Three decibels of ceiling bought *three decibels less* at the output, which is the opposite of what a
+ceiling ought to do, and no arithmetic on the settings produces any of those three numbers. A chain run
+therefore could not deliver a target its limiter had not happened to land on — and the first version of
+this engine reported the target as a *promise* rather than as a measurement, which is the failure mode
+`docs/TRUTH.md` exists to prevent.
+
+**Fix:** the run measures what the chain did, in the stage pass, like everything else about the chain; and
+a new **out fader** after the limiter is what the measurement buys. It is the only gain this product places
+after a limiter and it is safe there because the limiter has already bounded what reaches it — the fader's
+gain is exactly the gap between what the limiter delivered and the target, so it can only lift a signal
+that is below full scale to a level that is below full scale.
+
+**And the correction cannot go in front of the limiter.** The first version of *this* fix folded the
+residual into the front gain, which is a change of drive rather than a correction, because a limiter clamps
+whatever reaches it: every file came out a decibel low with the out fader computed correctly on paper and
+the front fader quietly absorbing it. The master's front gain is the stage's own, unchanged, and that is
+also what keeps the two passes at one operating point.
+
+### 2.6 ffmpeg's WAV muxer accepts a codec the container cannot frame
 
 `-c:a aac` writing to a `.wav` produces a **valid WAV header** with ADTS frames in the data chunk.
 `ffprobe` reports it happily — `format_name: wav`, one `aac` stream, the right duration — the muxer exits
@@ -118,6 +147,35 @@ open. It is the defect that produced R7 and R14.
 **Decision:** the muxer is named explicitly in every command rather than inferred from the extension, the
 container extension is chosen from a table of what each muxer can actually carry, and `verify` asks the
 finished file what it is. All three, because the failure is silent in two of the three places.
+
+---
+
+## 2b. The window, corrected after its first use
+
+The first version of this panel was five fields, on the right, with a named destination and a strategy
+select. It was correct about the engine and wrong about the person using it, and the corrections are worth
+recording because two of them were *layout* faults that no unit test could see.
+
+* **Five fields became two.** *Target*, *Sound*, *Make up* and *Limiter* are the names an engineer uses,
+  which is exactly the problem: "make up" and "limiter" mean nothing to somebody who has not sat in front
+  of a mixing desk, and a field whose label has to be looked up is a field that gets left alone. What is
+  left is **Level** and **Drive**, each with a sentence under it in plain words.
+* **The level and the limiter are one number.** Two fields for one decision is two chances to disagree
+  about it. `Settings.levelDbfs` travels as both.
+* **The output folder is not a control.** A dialog, a read-only field and a reset button for a decision
+  nobody makes: the copy goes beside the source, always, and the report says where.
+* **The settings moved to the left.** Against the right edge the eye travels to the far corner for the
+  thing it came for and back to the middle to read the files. Reading runs left to right.
+* **The DOM had to move with the stylesheet, and that is a real trap.** A grid places its children in
+  source order. The stylesheet was flipped and the markup was not, so the settings rendered on the right in
+  the 70 % track while the queue took the 475 px one — a fault invisible in the markup, invisible to a unit
+  test, and visible in a screenshot only if one measures rather than glances. `scripts/check_window.py`
+  now asserts both columns' positions *and* that the DOM order matches.
+* **The empty space took three attempts, and all three are written down** beside the rule that settled it in
+  `styles/app.css`. Zones stretched to share the window height is right when the zones are full of controls
+  and wrong when there are two of them; a log band sized as a share of the window reserves half the screen
+  for a log that has said nothing yet. The console is now as tall as what it has to say, with a floor and a
+  ceiling of its own, and the slack goes to the file list.
 
 ---
 

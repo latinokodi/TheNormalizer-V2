@@ -182,6 +182,10 @@
   --titlebar-height: 34px;
   --footer-height: 26px;
   --action-bar-height: 48px;
+  /*  The console band's floor. 190 px is the progress strip (28) plus a failure's three lines (~54) plus
+      about four log lines at the data face's 16 px line box, with the padding either side: a run's last
+      several lines without being scrolled, which is what a log is read for. */
+  --console-floor: 190px;
 
   /*
    * The two faces, bundled. Inter is the default: this window contains sentences — help text, notes, the
