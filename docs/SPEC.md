@@ -250,11 +250,20 @@ conversions and nothing more.
 **R26 — The window is two controls, and each one says what it does in words that do not have to be looked
 up.**
 **Level** is the peak every finished file will have; **Even out** is how far the quiet parts are lifted
-toward the loud ones; **Drive** is how hard the sound is pushed into the limiter. Everything else the engine accepts is either fixed at the value this product is for — the strategy,
+toward the loud ones; **Make up** is the Track Fx's make-up gain — how hard the sound is pushed into the limiter. Everything else the engine accepts is either fixed at the value this product is for — the strategy,
 the trim — or is not a decision the operator is making — a named destination, a bitrate. *Check:*
 `scripts/check_window.py` asserts that exactly three of the level, even-out, drive, strategy, target,
 make-up and ceiling fields exist on the page, and that each carries its prose. *Rationale:* a field whose label has to
 be looked up is a field that gets left alone (feedback from the first use of the window).
+
+**R26a — The window's controls are named so that an operator who set up the Track Fx recognises two of
+them.**
+They are **Make up** and **Level**, which are the two figures Premiere has — the compressor's make-up and the
+limiter's level — and they map one to one: make-up is a `volume` fader in front of the compressor, and Level
+is the limiter's ceiling. A third, **Even out**, is the one this product adds. *Check:*
+`scripts/check_window.py` asserts the four labels in order. *Rationale:* the control that carries the
+make-up figure was called "Drive" for two revisions, and the operator who owns the Track Fx asked what it
+was for — which is the whole of the case against a name that is not the name of the thing.
 
 **R26b — The product reduces dynamic range, because that is what it is for.**
 A `chain` run places the operator's filters, and those filters contain **no gain reduction** — their

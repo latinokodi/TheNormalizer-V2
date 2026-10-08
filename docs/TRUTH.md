@@ -135,6 +135,25 @@ what every existing setting sounds like, so it is a decision rather than a fix. 
 measures any drive value against any material, and `scripts/loudness_profile.py` reports two files window by
 window.
 
+## 6b1. What each control is, and that two of them are the operator's own
+
+The Premiere Track Fx this product reproduces has two figures in it: the compressor's **make-up** and the
+limiter's **level**. Both are controls here, under those names, in that order:
+
+| the window | the chain |
+|---|---|
+| **Make up** | a `volume` fader in front of the compressor |
+| **Level** | `alimiter`'s ceiling, and the peak the run corrects the file to |
+| **Even out** | `speechnorm`, before all of it — no Premiere equivalent |
+
+**Measured: `Make up` does not change the file's level.** On a modulated tone at a −6.00 dBFS target, 0, 6, 12
+and 24 dB of make-up all delivered **−6.00 dBFS**, because the run corrects to the target after the limiter
+whatever the drive did. What it changes is how hard the limiter is hit, and therefore how squashed the peaks
+come out — a question about character, not about level.
+
+The control was called **"Drive"** for two revisions. The operator who owns the Track Fx asked what it was
+for, which is the case against the name in one sentence.
+
 ## 6b2. The objective, stated and measured
 
 **The objective is that the voices come out even.** Not "the file peaks at −6 dBFS" — that is the arithmetic —

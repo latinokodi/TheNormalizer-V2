@@ -120,7 +120,7 @@ export function SettingsPanel({ settings, onChangeApplied, health, busy }: Props
         <NumberField
           id="level"
           label="Level"
-          unit="dBFS peak"
+          unit="dBFS — the limiter's ceiling"
           value={settings.levelDbfs}
           onCommit={(next) => set({ levelDbfs: next })}
           disabled={busy}
@@ -207,22 +207,49 @@ export function SettingsPanel({ settings, onChangeApplied, health, busy }: Props
 
         <NumberField
           id="drive"
-          label="Drive"
-          unit="dB of push"
+          label="Make up"
+          unit="dB into the limiter"
           value={settings.driveDb}
           onCommit={(next) => set({ driveDb: next })}
           disabled={busy}
         />
         {/*
-          This one earns its line: *Level* is self-evident and *Drive* is not. It is the only control that
-          changes how a file sounds rather than how loud it is, and nothing about the number says so.
+          **This control is the operator's own make-up figure**, and it was called "Drive" for two revisions,
+          which was a name nobody could map onto anything. It is a `volume` fader in front of the compressor
+          — the same place the Premiere Track Fx's make-up gain sits — and what it decides is how hard the
+          material is pushed into the limiter at the end of the chain, which is what decides how squashed the
+          peaks come out. It does not change the file's level: `Level` is what the file peaks at, and the run
+          corrects to it whatever this is set to.
         */}
         <p className="setting__hint">
-          Lifts the quiet parts and holds the loudest down, so a higher value sounds more even and less
-          dynamic. <span className="figures">+12</span> is the edit bay's setting;{" "}
-          <span className="figures">0</span> leaves the sound's dynamics alone.
+          The same make-up gain as the Track Fx: how hard the sound is pushed into the limiter, so a higher
+          value squashes the peaks down harder. <span className="figures">+12</span> is the edit bay's
+          setting. It does not change how loud the file is — <span className="figures">Level</span> does that.
         </p>
       </div>
+
+      {/*
+        What the three controls make, in one line and in the filters' own words.
+        
+        This exists because the three settings are named in three different vocabularies — a target level in
+        dBFS, a make-up figure in dB and a leveler in "expansion" — and an operator who set up the Premiere
+        Track Fx knows two of them by their Premiere names and has never met the third. A single sentence
+        saying *what runs, in order* is shorter than any explanation of it, and it is generated from the
+        settings rather than written out, so it cannot drift from what a run will do.
+      */}
+      <p className="recipe" aria-live="polite">
+        <span className="recipe__step">make up {settings.driveDb.toFixed(1)} dB</span>
+        <span className="recipe__arrow" aria-hidden="true">
+          →
+        </span>
+        <span className="recipe__step">
+          even out {settings.levelingDb <= 0 ? "off" : settings.levelingDb.toFixed(0)}
+        </span>
+        <span className="recipe__arrow" aria-hidden="true">
+          →
+        </span>
+        <span className="recipe__step">limiter {settings.levelDbfs.toFixed(1)} dBFS</span>
+      </p>
     </section>
   );
 }

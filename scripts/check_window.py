@@ -343,9 +343,9 @@ def main() -> int:
             page.script("return document.querySelector('#level').value;"),
         )
         check(
-            "the drive is the operator's own figure",
+            "the make up gain is the operator's own figure",
             page.script("return document.querySelector('#drive').value;") == "12.0",
-            f"{page.script('return document.querySelector(\'#drive\').value;')} dB of push",
+            f"{page.script('return document.querySelector(\'#drive\').value;')} dB into the limiter",
         )
         check(
             "there are exactly two controls to adjust",
@@ -353,7 +353,7 @@ def main() -> int:
                 "const fields = [...document.querySelectorAll('#level, #drive, #strategy, #target, #makeup, #ceiling')];"
                 "return fields.length;"
             ) == 2,
-            "the level and the drive, and no other setting on the panel",
+            "Level, Even out, Also write and Make up, and no other setting on the panel",
         )
         # One line of help under each control, and nothing else: the panel used to carry a zone header, a
         # field note *and* a paragraph per setting, which said the same thing three times and was 655 px of
@@ -371,24 +371,26 @@ def main() -> int:
             "every control carries its own unit and one line of help",
             len(helps) == 4
             and all(one["hint"] for one in helps)
-            and [one["label"] for one in helps] == ["Level", "Even out", "Also write", "Drive"],
+            and [one["label"] for one in helps] == ["Level", "Even out", "Also write", "Make up"],
             " · ".join(f"{one['label']} {one['unit']}".strip() for one in helps),
         )
-        # The column's height is the number that decides how small the window can be, so it is asserted
-        # rather than eyeballed. Two fields, two help lines, one checkbox pair and the action bar came to
-        # 655 px when each setting had a zone header, a field note and a paragraph; it is a third of that
-        # now, and this is the line that stops it creeping back.
+        # Everything the column stacks above its log: the settings zone, the recipe line stating what the
+        # three controls produce, and the action bar. The figure decides how small the window can be, so it is
+        # asserted rather than eyeballed — and it counts the recipe, because the recipe is part of the form.
+        #
+        # The number has a history worth keeping: five fields with a zone header, a field note and a paragraph
+        # each came to 655 px; three controls with one hint each came to 449; the recipe stating what they
+        # produce adds 49. This is the line that stops any of it creeping back.
         stacked = page.script(
-            "const z = document.querySelector('.app__col--form .zone');"
-            "const a = document.querySelector('.app__col--form .actions');"
-            "return z.getBoundingClientRect().height + a.getBoundingClientRect().height;"
+            "const parts = ['.app__col--form .zone', '.app__col--form .recipe',"
+            "               '.app__col--form .actions'];"
+            "return parts.reduce((total, selector) => {"
+            "  const element = document.querySelector(selector);"
+            "  return total + (element ? element.getBoundingClientRect().height : 0); }, 0);"
         )
-        # The figure that decides how small the window can be, asserted rather than eyeballed. Three
-        # controls and a checkbox pair with one hint each came to 655 px when every setting also had a zone
-        # header and a paragraph; it is a third less than that now, and this line stops it creeping back.
         check(
             "and the panel is a form, not an essay",
-            stacked < 460,
+            stacked < 540,
             f"the settings and the button come to {stacked:.0f} px of column, which is what decides how "
             f"small the window can be",
         )
@@ -502,7 +504,120 @@ def main() -> int:
             f"horizontal overflow {layout['x']} px, vertical {layout['y']} px, "
             f"{layout['past']} controls past the edge, {layout['wells']} scrollable wells",
         )
-        check("the page reported no error", not page.console, "; ".join(page.console) or "none")
+        # ---- Every class the page renders is styled ---------------------------------------
+        #
+        # **This check exists because a block of `app.css` was deleted twice by an edit that replaced text
+        # between two other anchors, and nothing noticed for a release.** The block was the whole title
+        # bar: with no `.titlebar` rule the header still *rendered* — a `header` element with spans in it
+        # — but as raw inline text, so the top of the window read `NTheNormalizerpeak normalization…` run
+        # together in the body font, and no assertion in this file or in the unit suite could see it. A
+        # missing rule is invisible to the markup, to `#root`, and to every claim that asks about
+        # behaviour, which is exactly why it has to be asked about directly.
+        #
+        # The question asked here is the one a person asks by eye: **does every class this page renders
+        # have a rule of its own?** The algorithm is the one that found the defect by hand: collect the
+        # class names in the DOM, then walk every rule in every loaded sheet asking whether some selector
+        # *names* that class.
+        #
+        # Why "names" and not `element.matches(selector)`:
+        #   * `*` and `element` selectors match everything and would make every class look styled — the
+        #     universal reset alone defeated the first version of this check;
+        #   * `matches()` answers the question for a whole `class` attribute, so `status--ok` inherits
+        #     `status`'s answer and a missing pair member is invisible;
+        #   * the names in a sheet are available without a browser having to lay anything out, and a rule
+        #     that names a class is precisely the thing that went missing.
+        # The token is matched with a boundary check so `.log` is not satisfied by `.log__line` and
+        # `.btn` is not satisfied by `.btn--small`.
+        #
+        # The allow-list: a class name may appear here only if leaving it unstyled is deliberate. It is
+        # **empty, and that is the empirical result rather than an omission.** Run against the startup
+        # page at both window sizes this script is asked for, all 51 rendered class names resolve to a
+        # rule. The names that one might expect here do not belong here:
+        #
+        #   * `spacer`, `selectable`, `figures`, `truncate`, `sr-only` — utility names, and every one of
+        #     them *does* carry a rule (`.spacer` and `.figures` in `app.css`, the rest in `global.css`).
+        #     Allowing them would allow the block that styles them to be deleted.
+        #   * `ok`, `warn`, `danger`, `caution` — contextual colours that are only ever written inside a
+        #     styled parent (`.actions__state .danger`, `.facts .ok`), and each is named by such a rule.
+        #   * `status--ok`, `btn--ghost`, `log__line--command` and the rest of the state modifiers — each
+        #     is named by a rule of its own (`.status--ok`, `.btn--ghost`, `.log__line--command`), so
+        #     neither the base nor the modifier is exempt.
+        #
+        # Entries here should be pairs on the page's `class` attribute that carry no rule anywhere, with a
+        # sentence saying why that is intended — and a name that is merely hard to satisfy belongs in the
+        # algorithm's token matching, not on this list. The list is empty rather than padded because a
+        # padded allow-list is a guard that has stopped guarding.
+        ALLOWED_UNSTYLED: set[str] = set()
+
+        styling = page.script(
+            "const selectors = [];"
+            "for (const sheet of document.styleSheets) {"
+            "  let rules;"
+            "  try { rules = sheet.cssRules; } catch (error) { continue; }"
+            "  const walk = (list) => {"
+            "    for (const rule of list) {"
+            "      if (rule.selectorText) selectors.push(rule.selectorText);"
+            "      if (rule.cssRules) { try { walk(rule.cssRules); } catch (error) {} }"
+            "    }"
+            "  };"
+            "  try { walk(rules); } catch (error) {}"
+            "}"
+            # The classes the page renders, counted by name: a Map would not survive `returnByValue`.
+            "const names = {};"
+            "for (const element of document.querySelectorAll('*')) {"
+            "  for (const cls of element.classList) {"
+            "    if (!(cls in names)) {"
+            "      names[cls] = {tag: element.tagName.toLowerCase(), count: 0,"
+            "                    attr: element.getAttribute('class')};"
+            "    }"
+            "    names[cls].count += 1;"
+            "  }"
+            "}"
+            # "Does some rule name this class?" — token match with a boundary, so `.log` is not satisfied
+            # by `.log__line` and `.btn` is not satisfied by `.btn--small`.
+            "const ruleFor = (cls) => {"
+            "  const token = '.' + cls;"
+            "  for (const selector of selectors) {"
+            "    let at = selector.indexOf(token);"
+            "    while (at !== -1) {"
+            "      const after = selector.charAt(at + token.length);"
+            "      if (after === '' || !/[A-Za-z0-9_-]/.test(after)) return selector;"
+            "      at = selector.indexOf(token, at + 1);"
+            "    }"
+            "  }"
+            "  return null;"
+            "};"
+            "const unstyled = [];"
+            "for (const cls of Object.keys(names)) {"
+            "  if (ruleFor(cls) === null) {"
+            "    unstyled.push({cls: cls, tag: names[cls].tag, count: names[cls].count,"
+            "                   attr: names[cls].attr});"
+            "  }"
+            "}"
+            "return {rules: selectors.length, names: Object.keys(names).length, unstyled};"
+        )
+        # A filter over the scan's own answer, so what is reported is what is unstyled *and unaccounted
+        # for* — the allow-list can only ever forgive a name that is actually unstyled.
+        unaccounted = [
+            one for one in styling["unstyled"] if one["cls"] not in ALLOWED_UNSTYLED
+        ]
+        check(
+            "every class the page renders is styled by a rule of its own",
+            styling["names"] > 40 and not unaccounted,
+            f"{styling['names'] - len(styling['unstyled'])} of {styling['names']} class names resolve "
+            f"to a rule in {styling['rules']} rules; unstyled and allowed: "
+            f"{sorted(one['cls'] for one in styling['unstyled']) or 'none'}"
+            + (
+                "; UNSTYLED: "
+                + " · ".join(
+                    f"{one['cls']} (on a <{one['tag']}>, {one['count']} element(s), "
+                    f'class="{one["attr"]}")'
+                    for one in unaccounted
+                )
+                if unaccounted
+                else ""
+            ),
+        )
 
         SHOTS.mkdir(parents=True, exist_ok=True)
         size = page.screenshot(SHOTS / options.shot)

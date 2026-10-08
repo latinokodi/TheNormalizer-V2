@@ -126,6 +126,79 @@
   font-family: var(--font-ui);
 }
 
+/*
+ * The title bar: one flex row across the top of the frame, `--titlebar-height` tall.
+ *
+ * It is a row and not a grid because there is exactly one thing in it that is allowed to shrink: the
+ * tagline. Everything else is `flex: none` — the mark is a fixed 18 px square, the product name is a fixed
+ * word, the rule is a fixed hairline — while the tagline is `flex: 0 1 auto` with `min-width: 0`, so when
+ * the window narrows it ellipsises rather than pushing the Clear button off the right edge. The `.spacer`
+ * between them absorbs the slack.
+ *
+ * **This block has been deleted twice by an edit that replaced text between two other anchors**, which is
+ * why it carries this comment: with no rule the header is a row of raw inline spans, and the bar reads as
+ * `NTheNormalizerpeak normalization…` run together in the body font. The guard against a third time is in
+ * `scripts/check_window.py`, which asserts that every class the page renders matches at least one rule
+ * unless it is on that script's allow-list of names that are unstyled by design.
+ */
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: var(--titlebar-height);
+  padding: 0 var(--space-5);
+  background: var(--substrate-300);
+  border-bottom: var(--hairline) solid var(--rule-strong);
+}
+
+/* The product's initial, reversed out of a filled square. */
+.titlebar__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}
+
+.titlebar__product {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--phosphor-bright);
+}
+
+/* The vertical hairline that separates the product's name from its sentence. */
+.titlebar__rule {
+  flex: none;
+  width: var(--hairline);
+  height: 14px;
+  background: var(--rule);
+}
+
+/*
+ * The one arbitrary-length string in the bar, and therefore the only part of it that shrinks: it keeps
+ * `min-width: 0` so the flex row may take width from it, and ellipsises rather than overflowing.
+ */
+.titlebar__tagline {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--phosphor-faint);
+}
+
 .app__body {
   display: grid;
   grid-template-columns: var(--form-panel-width) minmax(0, 1fr);
@@ -167,6 +240,23 @@
  * The settings column is the one thing in this window that scrolls rather than compresses when the window
  * is shorter than its content. It is the safety valve: below the declared minimum height the operator gets
  * a scrollbar on the controls instead of a Normalize button that has been cut off.
+ *
+ * ## The empty space under the log, and why it is there
+ *
+ * At the size the window opens, the log has about 280 px and the column has roughly 400 px of substrate
+ * under it — which reads as wasted space, and was reported as such. It is not the settings stretching: the
+ * settings stop at their content and the log takes everything else, so what is left over is whatever these
+ * two columns' contents do not fill.
+ *
+ * **The slack is measured against the wrong thing at idle.** A queue of zero files and a report of zero
+ * files are both empty, so the *right* column is short too, and the frame's height has nowhere to go except
+ * under whichever column is shorter. The moment a file is added the right column fills with rows and the
+ * report with facts, and the log is the region that would otherwise have starved — it was a 128 px band
+ * before this column existed.
+ *
+ * The alternative was to stretch the settings to fill it, which is what the first version of this column did
+ * and what made two fields sit in two half-window panels. **Blank space under a form is not the same defect
+ * as blank space around a control**, and the difference is what the four attempts recorded below are about.
  */
 .app__col--form {
   overflow-y: auto;
@@ -616,6 +706,34 @@
 .zone--log .log {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/*
+ * The recipe: the three settings restated as the filters they produce, in the order they run.
+ *
+ * It sits under the controls and above the button, which is the one place an operator looks before pressing
+ * it. `aria-live: polite` because it changes as the fields are typed into — somebody using a screen reader
+ * hears the chain change rather than having to go back and read three fields again.
+ */
+.recipe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-top: var(--hairline) solid var(--rule-hair);
+  background: var(--substrate-200);
+  font-family: var(--font-data);
+  font-size: var(--text-2xs);
+  color: var(--phosphor-dim);
+}
+
+.recipe__step {
+  white-space: nowrap;
+}
+
+.recipe__arrow {
+  color: var(--phosphor-faint);
 }
 
 /* A caption over a block of its own, in the report. */

@@ -40,7 +40,7 @@
  * operator who wants it larger. F11 is still offered as an explicit, reversible fullscreen.
  */
 
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
@@ -71,17 +71,61 @@ const ROOT = path.join(__dirname, "..");
  *   * **1100 wide** — the settings column takes 32 % of it, which is 352 px: measured, the column's content
  *     needs a little over 300 px plus padding, and its help lines wrap at 46 characters. The file list gets
  *     the other 748 px, which is a name, a level, a state, and the report's own facts beside them.
- *   * **760 tall** — bars 60, the log's floor 152, and the settings need 449 px on screen without being
+ *   * **760 tall** — bars 60, the log's floor 152, and the settings need about 530 px on screen without being
  *     scrolled. That leaves the file list about 270 px, which is the queue's five-row floor plus a little.
  *   * **1180x880 to open** — the same three sums with 120 px more for the file list and its report.
  *
- * The height grew by 160 px when **Even out** was added as a third control, and that is the honest cost of
- * it: three settings with a line of help each needs more room than two, and a window that clipped them would
- * be a window whose own control is off the bottom of it. The alternative — a shorter hint per control — was
- * taken as far as it goes (the leveler's help was cut from three lines to two before this number was set).
+ * ## And they are **CSS pixels**, which is not a detail
+ *
+ * Every size in this application is authored in CSS pixels, and a Windows window is created in *logical* ones
+ * with the content ending up at `logical x scale`. Measured on a 125 % display: a window asked for 1100x760
+ * gave the layout **880x608** — 220 px less width and 152 px less height than the layout was promised — and
+ * at that size the settings column scrolled, because 722 px of controls do not fit in 552.
+ *
+ * So the minimum is applied in the units it is a promise about. `WINDOW_MINIMUM` is authored in CSS pixels
+ * and `applyMinimum` converts it with the window's own `scaleFactor`, which also means it stays correct if
+ * the operator moves the window to a display with a different scale.
+ *
+ * The height grew by 160 px when **Even out** was added as a third control, and the recipe line added 49
+ * more. That is the honest cost: three settings with a line of help each need more room than two, and a
+ * window that clipped them would be a window with one of its own controls off the bottom of it.
  */
 const WINDOW_SIZE = { width: 1180, height: 880 };
 const WINDOW_MINIMUM = { width: 1100, height: 760 };
+
+/**
+ * Apply `WINDOW_MINIMUM` to a window, in the units the layout is authored in.
+ *
+ * A Windows window's size is in logical pixels and its content gets `logical x scaleFactor` of them, so a
+ * minimum set with `minWidth` alone is a minimum expressed in the wrong unit on any display that is not at
+ * 100 %. Converting here is the difference between promising the layout 1100 px and giving it 880.
+ */
+function applyMinimum(window) {
+  if (window === null || window.isDestroyed()) {
+    return;
+  }
+  // The display the window is actually on, and not the primary one: dragging a window to a monitor with a
+  // different scale is exactly the case a hard-coded factor gets wrong.
+  let factor = 1;
+  try {
+    const bounds = window.getBounds();
+    const display = screen.getDisplayMatching(bounds);
+    const scale = display && display.scaleFactor ? display.scaleFactor : 1;
+    // The page's own zoom multiplies on top of the display's scale, so both are in the factor.
+    factor = scale * window.webContents.getZoomFactor();
+  } catch (trouble) {
+    // `screen` is unavailable before the app is ready and throws rather than returning nothing. A minimum
+    // of one logical pixel is a bad minimum and a crash on startup is worse, so this falls back.
+    factor = 1;
+  }
+  if (!Number.isFinite(factor) || factor <= 0) {
+    factor = 1;
+  }
+  window.setMinimumSize(
+    Math.round(WINDOW_MINIMUM.width * factor),
+    Math.round(WINDOW_MINIMUM.height * factor),
+  );
+}
 
 /**
  * What the file dialogs offer, and it is one list for both kinds of file this product takes.
@@ -306,8 +350,10 @@ function createWindow(engine) {
      * Normalize button (`scripts/check_window.py --width 1100 --height 600`). The same two numbers are
      * `--frame-min-width` / `--frame-min-height` in `frontend/src/styles/tokens.css`.
      */
-    minWidth: WINDOW_MINIMUM.width,
-    minHeight: WINDOW_MINIMUM.height,
+    // The constructor's own minimums, in logical pixels, as a floor for the instant before
+    // `applyMinimum` runs; that one converts `WINDOW_MINIMUM` from CSS pixels properly.
+    minWidth: 880,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#0d1013",
@@ -323,6 +369,9 @@ function createWindow(engine) {
   });
 
   mainWindow.setMenu(null);
+  applyMinimum(mainWindow);
+  // A window dragged to a display with a different scale is a window whose minimum changed.
+  mainWindow.on("move", () => applyMinimum(mainWindow));
 
   // The engine's own page, or the dev server when one was asked for. `THE_NORMALIZER_DEV` is how a
   // hot-reloading session is started without a second entry point.

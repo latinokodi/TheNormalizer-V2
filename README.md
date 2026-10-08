@@ -55,11 +55,16 @@ Add media — several files at once, video or audio — set the level and how ev
 | **Level** | the peak every finished file will have, in dBFS. −6.0 by default, which is where a stitched episode sits |
 | **Even out** | how far the quiet passages are lifted toward the loud ones. 12 is where this was tuned; **0 leaves the sound's own dynamics completely alone** |
 | **Also write** | an uncompressed WAV, a 320 kbps MP3, or both, beside each master |
-| **Drive** | how hard the sound is pushed into the chain's limiter, which decides how hard the peaks are squashed on the way to the level. +12 dB is the edit bay's setting |
+| **Make up** | the Track Fx's own make-up gain: how hard the sound is pushed into the limiter, which is what decides how squashed the peaks come out. +12 dB is the edit bay's setting, and **it does not change the level** — `Level` does that |
+
+**Make up** and **Level** are the two figures the Premiere Track Fx has — the compressor's make-up and
+the limiter's level — in the same order, doing the same two things. **Even out** is the one this product
+adds, and it is the one that does what the program is for: the Track Fx's compressor is `ratio=1` and reduces
+no gain at all, so without a leveler the quiet parts of an interview stay quiet wherever the other two are set.
 
 Three figures, and only one of them is about loudness. **Level** decides how loud the file is. **Even out**
 decides how far apart its own quiet and loud parts are — the control that makes an interview sound like one
-recording rather than two. **Drive** decides how hard the peaks are pushed down to get there, which is a
+recording rather than two. **Make up** decides how hard the peaks are pushed down to get there, which is a
 question about character rather than about level, because the level is reached whatever it is set to.
 
 Measured on a 13-minute interview, 820 seconds of sound: the quietest fifth of the file moved **+18.4 dB**

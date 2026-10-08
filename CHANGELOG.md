@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Changed — the controls are named after the thing they set
+
+- **`Drive` is `Make up`.** It carries the Premiere Track Fx's *make-up gain* — a `volume` fader in front of
+  the compressor — and "Drive" was a name nobody could map onto anything they had ever set up. The operator
+  who owns the Track Fx asked what it was for, which is the whole of the case against a name that is not the
+  name of the thing. `Make up` and `Level` are now the operator's own two figures, in the operator's own
+  order, and `Even out` is the one this product adds. Measured on a modulated tone at a −6.00 dBFS target,
+  **the level is reached at every make-up figure** — 0, 6, 12 and 24 dB all delivered −6.00 — because the run
+  corrects to the target after the limiter whatever the drive did; what the figure changes is how squashed
+  the peaks come out. Its hint says so, in those words.
+- **A recipe line under the controls**, stating what the three settings produce in the filters' own words:
+  `make up 12.0 dB → even out 12 → limiter −6.0 dBFS`. Generated from the settings rather than written out, so
+  it cannot drift from what a run will do.
+- **`Level`'s unit now reads `dBFS — the limiter's ceiling`.** The control sets both the target and the
+  limiter, and the unit column is the one place with room to say so.
+
+
 ### Fixed — the product was not doing dynamics, and its name says it should be
 
 The report was *"I tested with a 13-minute interview and got the same file +6 dB; the quieter parts are still

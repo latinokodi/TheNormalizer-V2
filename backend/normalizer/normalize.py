@@ -106,6 +106,33 @@ from .process import (
 #: `TheStitcher` applies exactly this chain, with these two values, to every episode it stitches. A file
 #: normalized here has to sit beside one of those without sounding wrong, which is why the defaults are
 #: what they are rather than something this product preferred.
+#: The default make-up figure — the **Premiere make-up gain**, under the name Premiere uses for it.
+#:
+#: ## How the three settings map onto the Track Fx, because two of them *are* the Track Fx
+#:
+#: The operator sets two figures in Premiere: the compressor's make-up, and the limiter's level. Both are
+#: here — and an earlier version of this program called the first one "Drive", which was a name nobody could
+#: map onto anything they had ever set up. The three controls and the filters they produce:
+#:
+#: | the window | this engine | what runs |
+#: |---|---|---|
+#: | **Make up** | ``makeup_db`` | a ``volume`` fader in front of the compressor — the Track Fx's make-up, and the figure that decides how hard the limiter is hit |
+#: | **Level** | ``target_dbfs`` and ``ceiling_dbfs`` | ``alimiter``'s ceiling, and the peak the finished file is corrected to |
+#: | **Even out** | ``leveling_db`` | ``speechnorm`` before all of it, with no Premiere equivalent |
+#:
+#: So **Make up** and **Level** are the operator's own two knobs, in the operator's own order: make-up into
+#: the limiter, and the limiter's output. Measured on a modulated tone at a −6.00 dBFS target, **the level is
+#: reached at every make-up figure** — 0, 6, 12 and 24 dB all delivered −6.00 — because the run corrects to
+#: the target after the limiter whatever the drive did. What the figure changes is how *squashed* the peaks
+#: come out, which is a question about character rather than about level.
+#:
+#: **Even out** is the one this product adds, and it is the one that does what the program is for: the Track
+#: Fx's compressor is ``ratio=1`` and therefore reduces no gain at all, so without a leveler the quiet parts of
+#: an interview stay quiet no matter where the other two are set. See ``DEFAULT_LEVELING``.
+#:
+#: ``ceiling_dbfs`` is not a separate control because the level and the limiter are one decision: the level a
+#: file peaks at *is* the level the limiter is set to, and two fields for one number is two chances to
+#: disagree about it.
 DEFAULT_MAKEUP_DB = 12.0
 DEFAULT_CEILING_DBFS = -6.0
 
