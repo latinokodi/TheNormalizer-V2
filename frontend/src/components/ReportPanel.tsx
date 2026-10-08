@@ -120,7 +120,9 @@ export function ReportPanel({ row, onReveal }: Props) {
 
         {plan === null ? null : (
           <>
-            <p className="field-row__label">What happens to the sound</p>
+            {/* A caption over its own block, which is what `group-label` is: the settings panel used the
+                field-row family and no longer has rows to label, and this was the last use of that name. */}
+            <p className="group-label">What happens to the sound</p>
             <p className="graph selectable">{plan.filterGraph}</p>
           </>
         )}

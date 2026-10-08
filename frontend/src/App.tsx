@@ -652,9 +652,15 @@ export function App() {
             changes with the machine rather than with the product. The footer carries the health. */}
         <span className="titlebar__tagline">peak normalization · picture copied, sound rewritten</span>
         <span className="spacer" />
-        <button type="button" className="btn btn--ghost" onClick={() => void browse()}>
-          Add files…
-        </button>
+        {/*
+          One way to add files, and it is in the queue's own header.
+
+          There were two: the same verb, the same dialog, and both of them saying "Add files" — one here
+          and one three inches below it in the panel that lists what you added. Two controls for one
+          action is a question the operator has to answer ("are these different?") with no way to find
+          out, and the answer is that they were identical. The queue's header is where it belongs: it
+          sits over the thing it adds to.
+        */}
         <button
           type="button"
           className="btn btn--ghost"

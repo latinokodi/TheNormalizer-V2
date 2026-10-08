@@ -182,10 +182,14 @@
   --titlebar-height: 34px;
   --footer-height: 26px;
   --action-bar-height: 48px;
-  /*  The console band's floor. 190 px is the progress strip (28) plus a failure's three lines (~54) plus
-      about four log lines at the data face's 16 px line box, with the padding either side: a run's last
-      several lines without being scrolled, which is what a log is read for. */
-  --console-floor: 190px;
+  /*  The console band's floor. 128 px is the progress strip (28), a failure's own line (~17), two lines of
+      the run's log at the data face's 16 px line box, and the padding either side.
+
+      It was 190, chosen when the window was 1000 px tall and the log was the only thing that would fill it.
+      That floor was then most of what held the window open: the settings need 339 px and the bars need 60,
+      so a 190 px console put the smallest usable window at nearly 600 px and made the number look arbitrary
+      because it was. A log is read for its last lines, and two of them plus the strip is a log. */
+  --console-floor: 128px;
 
   /*
    * The two faces, bundled. Inter is the default: this window contains sentences — help text, notes, the
@@ -229,9 +233,12 @@
    *
    * A grading suite is not a 1366x768 laptop, and a scrollbar is worse than a larger minimum.
    */
-  --frame-min-width: 1280px;
-  --frame-min-height: 820px;
-  --form-panel-width: 30%;
+  --frame-min-width: 1100px;
+  --frame-min-height: 600px;
+  /*  The settings column. Its content is a label, a value and a 46ch hint: measured at 284 px of stack, so
+      the column wants a little over 300 px with its padding. 32% of the 1180 the window opens at is 378 px,
+      which leaves the file list 802 px -- a name, a level, a state, and room for the report's own facts. */
+  --form-panel-width: 32%;
 }
 
 /* ==========================================================================================

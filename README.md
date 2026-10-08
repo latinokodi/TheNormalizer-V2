@@ -113,7 +113,7 @@ naming the file in the way, and the normalized file still goes out.
 | `backend/normalizer/` | the engine: `process.py` (the only module that spawns anything), `media.py` (what a file is), `normalize.py` (the plan, the graphs, the run, the sound files), `verify.py` (measuring what was written) |
 | `backend/server.py` | the loopback HTTP and event-stream API the window talks to. Transport only — no normalizing logic |
 | `frontend/` | React + Vite + TypeScript, plain CSS over a design-token file. No CSS framework |
-| `electron/` | the window: starts the engine, proves it is *this* engine, opens a page on it |
+| `electron/` | the window: starts the engine, proves it is *this* engine, opens a page on it, and opens at the size of its content rather than maximized |
 | `scripts/bootstrap.ps1` | everything `start.bat` deliberately does not do |
 
 The window and the engine share one origin: the engine serves the built page. That is not a preference — a

@@ -28,6 +28,7 @@ piece is named and exits non-zero rather than pretending to have checked somethi
 
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import shutil
@@ -196,13 +197,29 @@ def choose(page: Page, selector: str, value: str) -> None:
     )
 
 
+def arguments() -> argparse.Namespace:
+    """The window size to render at. Defaults to the size the application opens at.
+
+    A layout's promise is about a *size*, and the only way to check one is to render at it: the settings
+    column is a fixed width and the frame's rows have minimums, so 1180x720 — the declared floor — is a
+    different page from 1600x1000 and is the one that has to be checked before it is promised.
+    """
+    parser = argparse.ArgumentParser(description="Render TheNormalizer's window and check it.")
+    parser.add_argument("--width", type=int, default=1180)
+    parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--shot", default="01-empty.png", help="the screenshot's name under docs/shots")
+    return parser.parse_args()
+
+
 def main() -> int:
+    options = arguments()
     health = engine()
     if health is None:
         print(f"nothing answering as TheNormalizer on {BACKEND}. Start it first:")
         print(r"  venv\Scripts\python.exe backend\server.py")
         return 1
     print(f"engine:  {health['product']} {health['version']} — {health.get('versionLine', '')}")
+    print(f"window:  {options.width}x{options.height} (the application opens at 1180x760)")
 
     binary = browser()
     if binary is None:
@@ -228,7 +245,7 @@ def main() -> int:
             "--no-default-browser-check",
             "--disable-extensions",
             "--force-device-scale-factor=1",
-            "--window-size=1600,1000",
+            f"--window-size={options.width},{options.height}",
             # Chromium 111+ refuses a DevTools WebSocket whose handshake carries an `Origin` it was not
             # told to allow, and a driver that does not send one is a driver that does not connect. The
             # flag is scoped to the debugging port, which is only listening on loopback and only for the
@@ -249,17 +266,48 @@ def main() -> int:
         page.call("Page.enable")
         page.call(
             "Emulation.setDeviceMetricsOverride",
-            width=1600,
-            height=1000,
+            width=options.width,
+            height=options.height,
             deviceScaleFactor=1,
             mobile=False,
         )
-        # A cache-buster on the URL. Chromium in a fresh profile still serves a sheet it fetched moments
-        # ago in another run of this script — the profile is per-run but the disk cache directory under
-        # `%LOCALAPPDATA%` is not — and a check that renders the *previous* build reports on code that no
-        # longer exists. It cost one debugging session to find, and it is one query string.
+        # A cache-buster on the URL, **and the cache switched off for everything the page then asks for**.
+        #
+        # Both, because the query string only busts the *document*: `index.html` names `./app.css` and
+        # `./app.js` with no hash in the name, so Chromium happily served the previous build's stylesheet
+        # into the new document. Chromium's disk cache under `%LOCALAPPDATA%` outlives this script's
+        # per-run profile, so a fresh profile is not a fresh cache either.
+        #
+        # It cost two debugging sessions. The first time, a layout fix appeared not to work and the capture
+        # was byte-identical to the previous one — the same hash for a screenshot of a page that had
+        # changed. This is the line that stops that being possible rather than unlikely.
+        page.call("Network.enable")
+        page.call("Network.setCacheDisabled", cacheDisabled=True)
         page.call("Page.navigate", url=f"{BACKEND}/?built={int(time.time())}")
         mounted = page.wait_for("document.querySelector('.titlebar__product')")
+
+        # **Then wait for the frame to be the size of the window**, and this is not belt and braces.
+        #
+        # React mounts before the stylesheet has been applied and before the fonts have settled, and in that
+        # state the frame is as tall as its content — measured, 542 px inside a 720 px window. Every check
+        # and the screenshot then ran against that page. It made two *correct* bugs look like they could not
+        # be fixed, because the capture of a fixed layout was byte-identical to the capture of the broken
+        # one: the page had not changed, the moment had.
+        #
+        # The condition is the frame filling the viewport, which is exactly what a settled `.app` means.
+        settled = page.wait_for(
+            "(() => {"
+            "  const app = document.querySelector('.app');"
+            "  return app !== null"
+            "    && Math.abs(app.getBoundingClientRect().height - window.innerHeight) <= 1;"
+            "})()",
+            timeout=10.0,
+        )
+        check(
+            "the frame is the size of the window before anything is measured",
+            settled,
+            "the page settled, so the checks and the screenshot describe one layout rather than three",
+        )
 
         print()
         # ---- It loaded, from the engine's own origin, and React mounted -------------------
@@ -284,7 +332,7 @@ def main() -> int:
         check("the footer got its answer from the engine", healthy, footer.replace("\n", " ").strip())
         check(
             "the sound-file note is written from what this machine can do",
-            "320 kbps MP3" in page.script("return document.body.textContent;"),
+            "separate files beside the video" in page.script("return document.body.textContent;"),
             "the note is rendered, which needs the health answer",
         )
 
@@ -307,11 +355,39 @@ def main() -> int:
             ) == 2,
             "the level and the drive, and no other setting on the panel",
         )
+        # One line of help under each control, and nothing else: the panel used to carry a zone header, a
+        # field note *and* a paragraph per setting, which said the same thing three times and was 655 px of
+        # column for two fields. What is checked is that the help is attached to a control and that there is
+        # exactly one line of it per control — not the sentence, which is allowed to change.
+        helps = page.script(
+            "return [...document.querySelectorAll('.setting')].map(s => {"
+            "  const hint = s.nextElementSibling;"
+            "  return {label: s.querySelector('.setting__label').textContent.trim(),"
+            "          unit: (s.querySelector('.setting__unit') || {}).textContent || '',"
+            "          hint: hint && hint.classList.contains('setting__hint')"
+            "                ? hint.textContent.trim().split('.')[0] : null};});"
+        )
         check(
-            "each control says what it does in words a person has not had to learn",
-            "Every finished file comes out as loud as this" in page.script("return document.body.textContent;")
-            and "changes how a file" in page.script("return document.body.textContent;"),
-            "both notes are rendered as prose rather than as labels",
+            "every control carries its own unit and one line of help",
+            len(helps) == 3
+            and all(one["hint"] for one in helps)
+            and [one["label"] for one in helps] == ["Level", "Also write", "Drive"],
+            " · ".join(f"{one['label']} {one['unit']}".strip() for one in helps),
+        )
+        # The column's height is the number that decides how small the window can be, so it is asserted
+        # rather than eyeballed. Two fields, two help lines, one checkbox pair and the action bar came to
+        # 655 px when each setting had a zone header, a field note and a paragraph; it is a third of that
+        # now, and this is the line that stops it creeping back.
+        stacked = page.script(
+            "const z = document.querySelector('.app__col--form .zone');"
+            "const a = document.querySelector('.app__col--form .actions');"
+            "return z.getBoundingClientRect().height + a.getBoundingClientRect().height;"
+        )
+        check(
+            "and the panel is a form, not an essay",
+            stacked < 380,
+            f"the settings and the button come to {stacked:.0f} px of column, which is what decides how "
+            f"small the window can be",
         )
         check(
             "changing the level moves the limiter with it",
@@ -323,6 +399,23 @@ def main() -> int:
         )
 
         # ---- The run control, and the layout ----------------------------------------------
+        # One verb, one dialog, one button. There were two — the same "Add files" in the title bar and in
+        # the queue's header — and two controls for one action is a question the operator cannot answer.
+        adders = page.script(
+            "return [...document.querySelectorAll('button')]"
+            "  .filter(b => b.textContent.trim().toLowerCase().startsWith('add files'))"
+            "  .map(b => b.closest('.zone, .titlebar').className.split(' ')[0]);"
+        )
+        check(
+            "there is exactly one way to add files",
+            len(adders) == 1,
+            f"{len(adders)} button(s) starting with \"Add files\": {adders}",
+        )
+        check(
+            "and it is in the queue, not the title bar",
+            adders[:1] == ["zone"],
+            f"it lives in {adders[0] if adders else 'nowhere'}",
+        )
         check(
             "the run control is present and disabled with nothing queued",
             page.script("return document.querySelector('.btn--primary').disabled;"),
@@ -367,6 +460,20 @@ def main() -> int:
             "  past: past.length,"
             "};"
         )
+        # The frame fills exactly the window it was handed, so the checks below and the screenshot that
+        # follows describe one layout. A page that has mounted but not settled is a page whose frame is as
+        # tall as its content — 542 px inside a 720 px window was measured — and a capture of that is a
+        # capture of nothing in particular.
+        frame = page.script(
+            "const a = document.querySelector('.app').getBoundingClientRect();"
+            "return [Math.round(a.width), Math.round(a.height),"
+            "        window.innerWidth, window.innerHeight];"
+        )
+        check(
+            "the frame is the window it was given",
+            abs(frame[1] - frame[3]) <= 1 and abs(frame[0] - frame[2]) <= 1,
+            f"the frame is {frame[0]}x{frame[1]} inside a window of {frame[2]}x{frame[3]}",
+        )
         check(
             "the frame fits its own window and nothing runs off the right edge",
             layout["x"] <= 0 and layout["y"] <= 0 and layout["past"] == 0,
@@ -376,8 +483,8 @@ def main() -> int:
         check("the page reported no error", not page.console, "; ".join(page.console) or "none")
 
         SHOTS.mkdir(parents=True, exist_ok=True)
-        size = page.screenshot(SHOTS / "01-empty.png")
-        print(f"\n  screenshot: docs/shots/01-empty.png ({size:,} bytes)")
+        size = page.screenshot(SHOTS / options.shot)
+        print(f"\n  screenshot: docs/shots/{options.shot} ({size:,} bytes)")
 
         connection.close()
     except Exception as failure:  # noqa: BLE001 - reported as a failed claim, not as a traceback

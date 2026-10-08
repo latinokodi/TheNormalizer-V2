@@ -267,7 +267,28 @@ field, no dialog and no reset for it, because there was one and nobody was makin
 report still states the path the engine will write. *Check:* `test_server.py::test_a_batch_of_several_files_given_one_output_path_is_refused`,
 `test_plan.py::test_the_container_replaces_the_extension_and_never_the_stem`.
 
-**R29 — The settings are on the left, and the source order is the reading order.**
+**R29 — The window is the size of its content, and it does not fill the screen.**
+It opens at 1180x720 and can be dragged down to 1100x600; it is never maximized. Its minimum is *checked*
+rather than declared: `scripts/check_window.py --width 1100 --height 600` renders the page at that size and
+asserts that the document does not overflow, that no control runs past an edge, and that the settings column
+scrolls rather than clipping its own Normalize button. The two numbers are `WINDOW_MINIMUM` in
+`electron/main.cjs` and `--frame-min-width`/`--frame-min-height` in `styles/tokens.css`. *Rationale:*
+maximized on a 2560-wide display, a form and a list left half the screen as substrate.
+
+**R30 — There is one way to add files, and it is in the queue's header.**
+There were two buttons that both said "Add files" and opened the same dialog — one in the title bar and one
+in the panel listing what had been added. Two controls for one action is a question the operator cannot
+answer. *Check:* `scripts/check_window.py` counts the buttons whose label starts with "Add files" and
+asserts there is one, in a `.zone`.
+
+**R31 — The settings are a form, not an essay.**
+Each control is a label, a value with its unit, and **one** line of help, and there are no zone headers over
+them. It was a zone header plus a field label plus a note plus a paragraph per setting, which said the same
+thing three times and measured 655 px of column for two fields — and that height is what decides how small
+the window can be. *Check:* `scripts/check_window.py` asserts that every setting carries a unit and exactly
+one hint, and that the settings plus the action bar come to under 380 px.
+
+**R32 — The settings are on the left, and the source order is the reading order.**
 The column that holds the decision comes first on the screen and first in the DOM, so what a screen reader
 and the Tab key follow is what the layout shows. *Check:* `scripts/check_window.py` measures both columns'
 positions and asserts the DOM lists them in the same order.
@@ -318,7 +339,10 @@ wrote — not from the plan's paths, which is what would offer an older file whe
 | R26 | `scripts/check_window.py` |
 | R27 | `queue.test.ts::sends one number as both the level and the limiter` |
 | R28 | `test_server.py::test_a_batch_of_several_files_given_one_output_path_is_refused` |
-| R29 | `scripts/check_window.py` (both columns' positions, and the DOM order) |
+| R29 | `scripts/check_window.py` at both sizes |
+| R30 | `scripts/check_window.py` (the button count) |
+| R31 | `scripts/check_window.py` (the stack height) |
+| R32 | `scripts/check_window.py` (both columns' positions, and the DOM order) |
 | R30 | `test_server.py::test_health_names_this_product`, `scripts/check_window.py` |
 | R31 | `test_plan.py::test_an_occupied_sound_name_is_skipped_with_a_reason` |
 

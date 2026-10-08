@@ -2,6 +2,67 @@
 
 ## [Unreleased]
 
+### Changed — feedback from the second use of the window
+
+- **The window is the size of its content and is no longer maximized.** It opened at 1600x1000 and then
+  called `maximize()`, which on a 2560-wide display filled the screen with a form and a list and left half
+  of it as substrate. It now opens at **1180x720** with a **1100x600** floor, both measured rather than
+  guessed: `scripts/inspect_window.py` reports what each part of the interface actually is, and those two
+  numbers are the sums. Verified in Electron: the OS reports a 1322x807 device-pixel window, which is
+  1180x720 logical at 125% scaling — not maximized, and the engine came up, answered `/api/health`, and
+  walked its process tree on a graceful close.
+- **There were two buttons that both said "Add files"** — one in the title bar and one in the queue's own
+  header — opening the same dialog. Two controls for one action is a question the operator cannot answer,
+  and the answer was that they were identical. The title bar's is gone; the queue's header keeps the one,
+  because it sits over the thing it adds to.
+- **The settings panel was an essay and is now a form.** Each setting carried a zone header with a title
+  *and* a note, a field label *and* a suffix, and a paragraph underneath: three layers of labelling and five
+  paragraphs, which said the same thing three times and measured **655 px of column for two fields**. There
+  are no zone headers now, one unit per control instead of a third grid column, and **one line of help**
+  under each field where the value is genuinely not guessable. It is **339 px** including the action bar, and
+  `scripts/check_window.py` asserts it stays under 380 so it cannot creep back. That height is not cosmetic:
+  it is what decides how small the window can be.
+
+### Fixed — the frame, in the fourth arrangement, and the instrument that was lying about it
+
+- **The frame is a flex column and the console is what grows.** The first three arrangements were grids, and
+  each nominated a region to absorb the window's height — first the settings zones, which stretched two
+  panels of 284 px around two fields of 45 px, then the body, which put the slack into a log that had not
+  said anything yet. Flex says it directly: the body is `flex: 0 0 auto` and the console is `flex: 1 1 auto`
+  with a 128 px floor, so an idle window is controls and files with a short log under them and a tall one is
+  controls, files, and a log with room to be read. All four attempts are recorded beside the rule that
+  settled it in `styles/app.css`.
+- **`min-height: 0` on the settings column was clipping its own Normalize button.** A flex column with a zero
+  minimum is one a grid may squeeze below its content, and the body row did exactly that: a window shorter
+  than the settings need did not scroll them, it put the action bar under the console band and off the bottom
+  edge with no scrollbar anywhere to say so. The queue column sets it back to zero, because a queue that
+  pushes a window taller is worse than a queue that scrolls.
+- **`100vh` for the frame was wrong, and only in the check.** `html`, `body` and `#root` are all `height:
+  100%`, so a percentage chains to the window while `vh` resolves against the *visual* viewport — which under
+  the device-metrics emulation the browser check uses is a different number. The frame stopped at 542 px
+  inside a 720 px window in the check and was correct in Electron.
+- **The browser check was measuring a page that had not settled.** React mounts before the stylesheet is
+  applied, and in that state the frame is as tall as its content. Every check and the screenshot then ran
+  against that page, which made two *correct* fixes look like they could not be made. It now waits for the
+  frame to equal the viewport before asserting anything, and there is a claim for it.
+- **And it was rendering the previous build.** `index.html` names `./app.css` with no hash in the name, so
+  Chromium served a cached sheet into a fresh document — a fixed layout produced a screenshot that was
+  **byte-identical** to the broken one. The check now disables the network cache as well as busting the
+  document URL. That single fault cost two debugging sessions, and the fix is two lines.
+- **`--width` and `--height` on `scripts/check_window.py`**, so a layout's promise about a *size* can be
+  checked at that size: the same claims now pass at 1180x720 and at 1100x600, and `docs/shots/02-minimum.png`
+  is the smallest window the application allows.
+
+### Added — the instruments for a question about a number
+
+- `scripts/inspect_window.py` — what the page loaded, whether that stylesheet carries the rules just written,
+  the frame's size against the viewport it was given, and every element of the settings column and the file
+  list by class with its height. This is what turns *"too much empty space"* into *"two zones of 284 px
+  around two fields of 45"*, and it is the instrument that distinguishes *"the layout is too big"* from
+  *"the page is not the page you think"*.
+- `scripts/measure_window.py` — where each column begins and how wide it is, as numbers, because a screenshot
+  at a non-integer scale factor is a poor instrument for a question arithmetic answers exactly.
+
 ### Changed — feedback from the first use of the window
 
 - **The window is two controls, and both of them say what they do.** It was five fields named the way an

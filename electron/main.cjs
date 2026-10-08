@@ -28,10 +28,16 @@
  * the body to name this product. A stranger on the port is reported as a stranger, not waited out for
  * thirty seconds and then called a timeout.
  *
- * ## Why the window opens maximized rather than fullscreen
+ * ## Why the window opens at the size of its content rather than maximized
  *
- * A borderless fullscreen window has no titlebar, and a window with no titlebar cannot be restored,
- * minimized or closed. Maximized fills the screen and keeps all of them.
+ * A borderless fullscreen window has no titlebar, so it cannot be restored, minimized or closed — but
+ * "maximized instead" was answering the wrong question. The question is not *how do we fill the screen
+ * safely*; it is *does this interface have anything to do with a whole screen*, and this one does not. It
+ * is a form and a list: the settings column is a fixed 30 % and the file list beside it, and on a
+ * 2560-wide display a maximized window leaves half the screen as substrate with nothing in it.
+ *
+ * So it opens at `WINDOW_SIZE`, which is the size the content needs, and it stays resizable for an
+ * operator who wants it larger. F11 is still offered as an explicit, reversible fullscreen.
  */
 
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
@@ -44,6 +50,34 @@ const TAG = "[thenormalizer]";
 const BACKEND_PORT = Number(process.env.PORT || 8767);
 const BACKEND = `http://127.0.0.1:${BACKEND_PORT}`;
 const ROOT = path.join(__dirname, "..");
+
+/**
+ * How big the window opens, and how small it may be dragged.
+ *
+ * ## Why they are named pairs and not literals in a constructor
+ *
+ * They are the numbers in this file a person will want to change, they are quoted in `README.md`, and the
+ * declared minimum in `frontend/src/styles/tokens.css` is derived against them — so they are stated once,
+ * here, with the reason.
+ *
+ * ## How they were arrived at
+ *
+ * **Measured, not estimated.** `scripts/inspect_window.py` renders the page in a real browser and reports
+ * what each part of the interface is actually made of, because the first version of these numbers was two
+ * guesses that were both wrong: the window opened at 1600x1000 and then maximized, which filled a
+ * 2560-wide screen with a panel whose content is a form, and the minimum was 1280x820 because that is what
+ * the sibling product used.
+ *
+ *   * **1100 wide** — the settings column takes 32 % of it, which is 352 px: measured, the column's content
+ *     needs 284 px plus padding, and its help lines wrap at 46 characters. The file list gets the other
+ *     748 px, which is a name, a level, a state, and the report's own facts beside them.
+ *   * **600 tall** — bars 60, console floor 128, and the settings need 339 to be on screen without being
+ *     scrolled. That leaves the file list 200 px, which is the queue's five-row floor: a window this size
+ *     is tight, and it is tight rather than broken, which is what `scripts/check_window.py` checks.
+ *   * **1180x720 to open** — the same three sums with 130 px more for the file list and its report.
+ */
+const WINDOW_SIZE = { width: 1180, height: 720 };
+const WINDOW_MINIMUM = { width: 1100, height: 600 };
 
 /**
  * What the file dialogs offer, and it is one list for both kinds of file this product takes.
@@ -247,14 +281,29 @@ function escapeHtml(text) {
 
 function createWindow(engine) {
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 1000,
-    minWidth: 1280,
-    // The frame's own floor, kept equal to `--frame-min-height` in `frontend/src/styles/tokens.css`. The
-    // two are derived together: the queue, the settings column, the selected file's report and the log
-    // band all have to fit without scrolling at the declared minimum, and a window that can be dragged
-    // shorter than that is a window whose layout promise is broken from the outside.
-    minHeight: 820,
+    /*
+     * The size the interface actually needs, and no more.
+     *
+     * The window used to open at 1600x1000 and then **maximize**, which filled a 2560-wide screen with a
+     * panel whose content is 1180 wide — the file list stretched, the settings column did not, and the
+     * right half of the screen was substrate with nothing in it. A desktop tool that takes the whole
+     * screen has to have something to do with the whole screen, and this one does not: it is a form and a
+     * list.
+     *
+     * `maximized` is not called at any point. The window is resizable, and dragging it larger is the
+     * operator's decision rather than this application's.
+     */
+    width: WINDOW_SIZE.width,
+    height: WINDOW_SIZE.height,
+    /*
+     * The floor below which the layout stops working, and it is **checked** rather than declared: a real
+     * browser renders the page at exactly this size and asserts that the document does not overflow, that
+     * no control runs past an edge, and that the settings column scrolls rather than clipping its own
+     * Normalize button (`scripts/check_window.py --width 1100 --height 600`). The same two numbers are
+     * `--frame-min-width` / `--frame-min-height` in `frontend/src/styles/tokens.css`.
+     */
+    minWidth: WINDOW_MINIMUM.width,
+    minHeight: WINDOW_MINIMUM.height,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#0d1013",
@@ -270,7 +319,6 @@ function createWindow(engine) {
   });
 
   mainWindow.setMenu(null);
-  mainWindow.maximize();
 
   // The engine's own page, or the dev server when one was asked for. `THE_NORMALIZER_DEV` is how a
   // hot-reloading session is started without a second entry point.

@@ -171,8 +171,18 @@ recording because two of them were *layout* faults that no unit test could see.
   the 70 % track while the queue took the 475 px one — a fault invisible in the markup, invisible to a unit
   test, and visible in a screenshot only if one measures rather than glances. `scripts/check_window.py`
   now asserts both columns' positions *and* that the DOM order matches.
-* **The empty space took three attempts, and all three are written down** beside the rule that settled it in
-  `styles/app.css`. Zones stretched to share the window height is right when the zones are full of controls
+* **The empty space took four attempts, and all four are written down** beside the rule that settled it in
+  `styles/app.css`. The fourth is the one that worked and the reason is worth stating: **the frame is a flex
+  column and the console is what grows.** The grid versions each had to nominate a region to absorb the
+  window's height, and row order nominated the wrong one twice — first the zones, which stretched two panels
+  around two fields, then the body, which put the slack into a log that had not said anything yet. Flex says
+  it directly: the body is `flex: 0 0 auto` and the console is `flex: 1 1 auto` with a 128 px floor.
+* **And a measurement trap that cost two sessions.** A page that has mounted but not settled has a frame as
+  tall as its content — 542 px inside a 720 px window — so checks and a screenshot taken at that moment
+  describe a page that no longer exists. `scripts/check_window.py` now waits for the frame to equal the
+  viewport before asserting anything, and renders with the network cache disabled: `index.html` names
+  `./app.css` with no hash, so Chromium served the *previous* build's stylesheet into the new document and a
+  fixed layout produced a byte-identical capture. Zones stretched to share the window height is right when the zones are full of controls
   and wrong when there are two of them; a log band sized as a share of the window reserves half the screen
   for a log that has said nothing yet. The console is now as tall as what it has to say, with a floor and a
   ceiling of its own, and the slack goes to the file list.

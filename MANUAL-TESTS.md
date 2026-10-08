@@ -21,6 +21,20 @@ where it matters — what it would mean if it did not.
 **If the window does not open**, the page that appears instead says which interpreter was tried, on which
 port, and the last thing the engine printed. A white screen with no text is a defect worth reporting.
 
+| Step | Expected |
+|---|---|
+| Look at the window when it opens | it is **1180x720, not maximized**. A form and a list have nothing to do with a 2560-wide display |
+| Drag it as small as it goes | it stops at 1100x600. The settings column gains a scrollbar if it needs one; the Normalize button is never cut off |
+| Drag it as large as it goes | the **log** gets the extra height. The settings do not stretch and the file list does not gain blank space |
+| Count the ways to add a file | **one**, in the queue's header. There were two buttons with the same label and the same dialog |
+| Read the settings column | two controls, each a label, a value with its unit, and one line of help. No headings over them and no paragraphs
+
+| Step | Expected |
+|---|---|
+| Look at the window when it opens | it is **1180x720 in the middle of the screen, not maximized**. A form and a list have nothing to do with a 2560-wide display |
+| Drag it as small as it goes | it stops at 1100x600. The settings column gains a scrollbar if it needs one; the Normalize button is never cut off |
+| Drag it as large as it goes | the **log** gets the extra height. The settings do not stretch and the file list does not gain blank space |
+
 ## 2. A batch of real files
 
 Prepare an episode's worth: at least one 1080p video with a soundtrack, one file quieter than the target and
@@ -115,3 +129,22 @@ This is the one check nothing automated can make, and it is the reason to do a r
   over; whether that list is right for your material is worth reading once.
 - **A target below −9 dBFS through the operator's chain.** The chain's fader can attenuate, but the limiter
   is still in the path and nothing has been listened to there.
+
+
+---
+
+## The scripts for a measurement rather than a claim
+
+Two of these exist for questions that are about a *number* rather than a behaviour, and both were written
+while answering one: **why is this window the size it is?** They run against a live engine and change nothing
+on disk.
+
+```bat
+venv\Scripts\python.exe scripts\inspect_window.py     :: what each part of the page is, and how tall
+venv\Scripts\python.exe scripts\measure_window.py     :: where each column begins and how wide it is
+```
+
+`inspect_window.py` is the one to reach for first. It reports the classes the interface is built from and
+each one's height, which distinguishes *"the layout is too big"* from *"the page is not the page you think"* —
+a distinction this build got wrong twice, and each time the symptom was a measurement that would not change
+however much the stylesheet did.

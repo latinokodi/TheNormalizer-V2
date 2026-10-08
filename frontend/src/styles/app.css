@@ -10,9 +10,11 @@
  * there is no mobile, and a professional tool that rearranges itself is a tool that cannot be learned by
  * muscle memory.
  *
- * The frame has a 1280x820 minimum, mirrored by `minHeight` in `electron/main.cjs`. Inside the frame the
- * only things that scroll are the three wells that can hold an unbounded number of rows: the queue, the
- * log, and the selected file's report. **The frame never scrolls.**
+ * The frame has a **1100x600** minimum, mirrored by `WINDOW_MINIMUM` in `electron/main.cjs` and checked
+ * by `scripts/check_window.py --width 1100 --height 600` rather than declared. Inside the frame the only
+ * things that scroll are the three wells that can hold an unbounded number of rows: the queue, the log and
+ * the selected file's report — plus the settings column, which is the safety valve for a window at that
+ * minimum. **The frame never scrolls.**
  *
  * ============================================================================================
  * The frame
@@ -28,7 +30,7 @@
  * │ ── what it will do ──├─────────────────────────────────────────────────────┤
  * │      [Normalize]     │ THE FILE  facts · graph · checks · cautions (scrolls)│
  * ├──────────────────────┴─────────────────────────────────────────────────────┤
- * │ PROGRESS: bar · stage · file 3 of 7 · elapsed          min 190, max 46%    │
+ * │ PROGRESS: bar · stage · file 3 of 7 · elapsed            floor 128 px       │
  * │ LOG (scrolls internally, newest first)                                      │
  * ├────────────────────────────────────────────────────────────────────────────┤
  * │ ffmpeg lamp · files queued · product                                     26│
@@ -87,115 +89,55 @@
  * option is text running off the edge of the panel.
  */
 
+/*
+ * The frame: a flex column whose **log grows** and whose body is exactly as tall as its two columns.
+ *
+ * ## Why not a grid of four rows
+ *
+ * Three versions of this were a grid, and each one put the hole somewhere different: the body on `1fr` with
+ * every zone inside it growing gave two large blank panels under two small controls; `auto` for the body
+ * moved the hole into the log, which then reserved half the screen for a log that had said nothing. The
+ * fault in both was that *something had to absorb the window's height*, and the grid gave that job to a
+ * region chosen by row order rather than by which region actually grows.
+ *
+ * Flex answers the question directly. The body is `flex: 0 0 auto` — as tall as the settings plus what is
+ * left for the file list, and no taller — and the console is `flex: 1 1 auto`, so **every pixel the body
+ * does not use goes to the log**. A short window is controls and files with the log's 128 px floor under
+ * them; a tall one is controls, files, and a log with room to be read; a run with three hundred lines fills
+ * it and scrolls inside it.
+ *
+ * `min-height: 100vh` rather than `height` so that a window dragged below the floor gives the settings
+ * column a scrollbar *and* a page that can scroll, instead of a Normalize button that has been clipped off
+ * the bottom edge — see `.app__col`.
+ */
 .app {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   /*
-   * title bar · body · console · footer.
-   *
-   * **The console is `auto`, with a floor and a ceiling, and the body takes everything left over.**
-   *
-   * The history of these four rows is worth keeping, because each version failed differently and only the
-   * third is not a hole somewhere:
-   *
-   *   1. the body on `1fr` with every zone inside it growing — two zones holding one field each stretched
-   *      to half the window: two large blank panels under two small controls;
-   *   2. `auto` for the body, which fixed that and moved the hole into the **log**. A log is empty until
-   *      something has run, so a band sized as a share of the window reserves half the screen for nothing,
-   *      and an empty screen is what the first two attempts after this were;
-   *   3. this one. The console is as tall as what it has to say — the progress strip, the failure if there
-   *      is one, and the lines themselves — with a floor of 190 px. Its ceiling is on the **log** rather
-   *      than on the row (`.log` below), because a grid track cannot be "as tall as its content but no
-   *      more than this": `minmax(190px, 46%)` is a share of the window and `min(auto, 46%)` is not valid
-   *      CSS at all — the second of those was written first and silently dropped the whole declaration.
-   *
-   * So an idle window is all controls and files with a one-line log under them, and a run with three
-   * hundred lines of console fills the band to the log's own ceiling and scrolls inside it.
+   * `height: 100%` and **not `100vh`**, which was the first version and was wrong in a way that took a
+   * screenshot to see: `html`, `body` and `#root` are all `height: 100%`, and a percentage chains through
+   * them to the window, while `vh` resolves against the *visual viewport* — which under the
+   * device-metrics emulation `scripts/check_window.py` uses is not the same number, so the frame stopped at
+   * 490 px inside a 720 px window and the capture had a band of nothing under the footer. In Electron the
+   * two agree and the bug is invisible; in the check they did not and it was not.
    */
-  grid-template-rows:
-    minmax(var(--titlebar-height), auto)
-    minmax(0, 1fr)
-    minmax(var(--console-floor), auto)
-    minmax(var(--footer-height), auto);
   height: 100%;
   overflow: hidden;
   background: var(--substrate-000);
   font-family: var(--font-ui);
 }
 
-/* ==========================================================================================
-   Title bar
-   ========================================================================================== */
-
-.titlebar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  /*
-   * `min-height` and not `height`: it is a grid child in a row sized `minmax(34px, auto)`, and a row that
-   * can grow is a row that will also let its content decide. Stating the minimum is what keeps a bar whose
-   * content is one line of text from being a bar with no bar in it — which is exactly what happened when
-   * this block was lost for one build.
-   */
-  min-height: var(--titlebar-height);
-  padding: 0 var(--space-5);
-  background: var(--substrate-300);
-  border-bottom: var(--hairline) solid var(--rule-strong);
-}
-
-/*
- * The mark is a filled block with the product's initial reversed out of it. No logo file and no icon font
- * — and it is light rather than coloured, because the accent in this application means "this is the
- * action" and the mark is not an action.
- */
-.titlebar__mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  background: var(--primary);
-  color: var(--primary-ink);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  line-height: 1;
-}
-
-.titlebar__product {
-  flex: none;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--phosphor-bright);
-}
-
-.titlebar__tagline {
-  /* The one arbitrary-length string in the bar. It shrinks and ellipsises. */
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-2xs);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--phosphor-faint);
-}
-
-.titlebar__rule {
-  flex: none;
-  width: var(--hairline);
-  height: 14px;
-  background: var(--rule);
-}
-
 .app__body {
   display: grid;
   grid-template-columns: var(--form-panel-width) minmax(0, 1fr);
-  /* It fills the share the frame gave it, and `min-height: 0` is what lets a column inside it scroll
-     rather than push the body taller. */
-  min-height: 0;
+  /*
+   * `0 0 auto`: as tall as its columns need and not one pixel more, so the slack is left for the console.
+   * It has a **cap** as well — `max-height` — because the settings column's content is fixed and the queue
+   * column's floor is declared, so anything above that cap belongs to the log rather than to more blank
+   * substrate beside the file list.
+   */
+  flex: 0 0 auto;
+  max-height: calc(100% - var(--console-floor));
   overflow: hidden;
 }
 
@@ -203,15 +145,26 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
+  /*
+   * **No `min-height: 0` here**, and its absence is load-bearing.
+   *
+   * A flex column with a zero minimum is one the grid may squeeze below its content, and a body row sized
+   * `minmax(0, 1fr)` will do exactly that — so a window shorter than the settings need does not scroll
+   * them, it *clips* them: the action bar and the Normalize button go under the console band and off the
+   * bottom edge, with no scrollbar anywhere to say so. Without the zero minimum the column keeps its
+   * content height and the settings column's own `overflow-y: auto` is what the operator gets instead.
+   *
+   * The queue column sets it back to zero, because a queue that pushes a window taller is worse than a
+   * queue that scrolls inside itself: it holds an unbounded number of rows, and the selected file's report
+   * beneath it has to stay reachable.
+   */
   overflow: hidden;
 }
 
 /*
- * The safety valve. At the declared minimum this column does not overflow and shows **no** scrollbar;
- * below it, the operator gets a scrollbar on the settings rather than a Start button that has been cut
- * off the bottom of the window. Degrading outside the supported range is not the same thing as being
- * scrollable inside it.
+ * The settings column is the one thing in this window that scrolls rather than compresses when the window
+ * is shorter than its content. It is the safety valve: below the declared minimum height the operator gets
+ * a scrollbar on the controls instead of a Normalize button that has been cut off.
  */
 .app__col--form {
   overflow-y: auto;
@@ -243,6 +196,8 @@
  */
 .app__col--queue {
   display: grid;
+  /* Set back to zero: this is the column that scrolls rather than one that pushes the window taller. */
+  min-height: 0;
   /* Five rows of floor rather than six: the queue is one of two things in this column now, and a floor
      that pushed the report's checks off the bottom was the reason the first layout felt empty — the space
      was being held for rows that were not there. */
@@ -529,36 +484,48 @@
    Fields: a label column and a value row
    ========================================================================================== */
 
-.field-row {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-4);
+/* ==========================================================================================
+   A setting: a label, a value with its unit, and one line of help when it needs one
+   ========================================================================================== */
+
+/*
+ * This replaced a three-column row family — label, value, trailing note — plus a prose paragraph, plus a
+ * zone header over the top of it. Measured, that came to **655 px** of column for two fields, and it said
+ * the same thing three times: "LEVEL / what every file comes out at", then "Level … dBFS peak", then a
+ * paragraph beginning "Every finished file comes out as loud as this".
+ *
+ * The stack is what a form needs and nothing else: a label on its own line so it can be a real sentence
+ * case word rather than the 10 px uppercase whisper a three-column grid forces, the control under it, and
+ * a hint under that only where the value is not guessable.
+ */
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   min-width: 0;
 }
 
-.field-row__label {
-  font-size: var(--text-2xs);
+.setting__label {
+  font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--phosphor-dim);
+  letter-spacing: 0.02em;
+  color: var(--phosphor);
 }
 
-.field-row__value {
+/*
+ * The control and its unit are one run: `−6.0` and `dBFS peak` are a single statement, and putting the
+ * unit in a third grid column put it the same distance from every field whether it belonged to it or not.
+ */
+.setting__control {
   display: flex;
   align-items: center;
   gap: var(--space-4);
   min-width: 0;
 }
 
-/*
- * The trailing note on a row, to the right of the control.
- *
- * It does not shrink, and the control does. Both shrinking is how a sentence about what a setting means
- * gets clipped mid-word, and a sentence cut in half is worse than a slightly narrower field.
- */
-.field-row__note {
+.setting__unit {
+  /* It does not shrink, and a long one ellipsises before it wraps: a unit that wraps under its own value
+     reads as a second field. */
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -568,130 +535,54 @@
   color: var(--phosphor-faint);
 }
 
-.field-row__note.danger {
-  color: var(--hazard);
+/*
+ * The one line of help under a control, and it is dimmed rather than bright on purpose: it is read once and
+ * skipped thereafter, and a form whose help text competes with its labels is a form with no labels.
+ */
+.setting__hint {
+  max-width: 46ch;
+  font-size: var(--text-xs);
+  font-style: italic;
+  line-height: var(--leading-normal);
+  color: var(--phosphor-faint);
 }
 
-/*
- * A sentence about a control, on its own line under it, in the control's column. It wraps rather than
- * ellipsising, because it is prose and its second half is the half that says what the setting costs.
- */
-.field-row__prose {
-  grid-column: 2;
-  min-width: 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-normal);
+.setting__hint .figures {
+  /* In a hint the figures are part of a sentence, so they carry the sentence's colour and only the face
+     changes. A monospace run in the middle of italic prose is a shout. */
+  font-style: normal;
   color: var(--phosphor-dim);
 }
 
-.field-row__prose--warn {
-  color: var(--caution);
+/* The checkboxes sit on one line, because they are two answers to one question rather than two rows. */
+.setting--toggles .setting__control {
+  gap: var(--space-6);
 }
 
-/*
- * A checkbox with its own word, for a setting that is a decision rather than a value.
- *
- * The whole thing is the label, so the whole thing is the target: `--row-height` is 28 px tall and the
- * sentence is its width, which clears the 24x24 px minimum of WCAG 2.2 AA 2.5.8.
- */
-.field-row__toggle {
-  display: inline-flex;
+.setting__toggle {
+  display: flex;
   align-items: center;
-  gap: var(--space-4);
-  min-height: var(--row-height);
-  min-width: 0;
-  font-size: var(--text-sm);
-  color: var(--phosphor-bright);
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--phosphor);
   cursor: pointer;
 }
 
-/*
- * The box is drawn rather than taken from the platform, for the same reason the fields are: its edge is
- * the visual information that says there is something here to operate, and the platform's checkbox picks
- * that colour against a surface it knows nothing about. `--rule-edge` is 3.15:1 on a panel.
- *
- * The tick is a clipped polygon: no image, no font, and no gradient.
- */
-.field-row__toggle input[type="checkbox"] {
-  appearance: none;
-  flex: none;
-  position: relative;
-  width: 14px;
-  height: 14px;
-  border: var(--hairline) solid var(--rule-edge);
-  background: var(--substrate-000);
-  cursor: pointer;
-  transition:
-    background var(--motion-fast) var(--easing),
-    border-color var(--motion-fast) var(--easing);
-}
-
-.field-row__toggle input[type="checkbox"]:checked {
-  /* Blue and not the primary near-white: a ticked box is a selection, and blue is what selection means
-     in this window. The near-white is spoken for by the one control that starts work. */
-  background: var(--select);
-  border-color: var(--select);
-}
-
-.field-row__toggle input[type="checkbox"]:checked::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--substrate-000);
-  clip-path: polygon(13% 47%, 0 61%, 38% 100%, 100% 21%, 85% 7%, 37% 72%);
-}
-
-.field-row__toggle:hover input[type="checkbox"]:not(:disabled) {
-  border-color: var(--phosphor-faint);
-}
-
-.field-row__toggle input[type="checkbox"]:disabled {
-  /* Keeps its edge and its fill and loses only its contrast, exactly as a disabled field does. */
-  border-color: var(--rule-edge);
-  background: var(--substrate-100);
-  cursor: not-allowed;
-}
-
-.field-row__toggle:has(input:disabled) {
+.setting__toggle input:disabled + * ,
+.setting__toggle:has(input:disabled) {
   color: var(--phosphor-faint);
   cursor: not-allowed;
 }
 
-/* A row of checkboxes rather than one: the two sound-file boxes are one decision with two parts. */
-.field-row__value--toggles {
-  flex-wrap: wrap;
+/* A caption over a block of its own, in the report. */
+.group-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
 }
 
-/* ==========================================================================================
-   Controls
-   ========================================================================================== */
-
-.path-field,
-.number-field,
-select,
-input[type="text"],
-input[type="number"] {
-  width: 100%;
-  height: var(--field-height);
-  padding: 0 var(--space-5);
-  /* The control's edge, and the reason this is not `--rule`: see the head of this file. */
-  border: var(--hairline) solid var(--rule-edge);
-  background: var(--substrate-000);
-  color: var(--phosphor-bright);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  transition:
-    border-color var(--motion-fast) var(--easing),
-    background var(--motion-fast) var(--easing);
-}
-
-/* A path is data: it is read character by character to check a drive letter or an extension. */
-.path-field {
-  font-family: var(--font-data);
-  font-size: var(--text-xs);
-}
-
-/* A level is a figure: the data face, tabular digits, and the ones digit on a fixed edge. */
 .number-field {
   flex: 0 1 9ch;
   font-family: var(--font-data);
@@ -978,7 +869,14 @@ input::placeholder {
 .console {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  /*
+   * The floor is a `min-height` rather than a grid track, and that is the whole reason the frame is a flex
+   * column now: the console absorbs every pixel the body does not use and stops at this floor when there is
+   * nothing spare. "As tall as its content", "at least this tall" and "all the height that is left" is one
+   * line of flex and was three failed attempts as a grid.
+   */
+  min-height: var(--console-floor);
+  min-width: 0;
   overflow: hidden;
   background: var(--substrate-100);
   border-top: var(--hairline) solid var(--rule-strong);
@@ -1108,6 +1006,7 @@ input::placeholder {
 }
 
 .log {
+  /* The one region that absorbs the window's height. See `.app`. */
   flex: 1 1 auto;
   min-height: 0;
   /*
@@ -1116,7 +1015,6 @@ input::placeholder {
    * bars and a body worth having. On a 1000 px window that is 560 px of log at most, which is far more
    * than a run needs to be read and leaves the file list the majority of the screen.
    */
-  max-height: calc(100vh - var(--titlebar-height) - var(--footer-height) - 380px);
   overflow-y: auto;
   padding: var(--space-4) var(--space-5);
   background: var(--substrate-000);
