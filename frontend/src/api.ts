@@ -122,6 +122,8 @@ export interface LevelsView {
 export interface ProbeView {
   readonly media: MediaView;
   readonly levels: LevelsView;
+  /** How loud it sounds and how wide its dynamics are. A report; the peak is what the arithmetic uses. */
+  readonly loudness: LoudnessView;
   /** Where a normalized copy would go. The engine's answer, so the row and the run agree. */
   readonly suggestedOutput: string;
 }
@@ -132,6 +134,30 @@ export interface ProbeView {
 
 /** The normalizing strategies the engine names. */
 export type Strategy = "gain" | "chain" | "ceiling";
+
+/**
+ * How loud a file **sounds**, and how wide its own dynamics are.
+ *
+ * This is the pair that explains a file's own character, and it is reported beside the peak because the two
+ * disagree by an amount that depends entirely on the material. A peak is a number about one sample; loudness
+ * is a number about a listener. A file whose peak is exactly where it was asked for and whose loud parts and
+ * quiet parts are twenty LU apart is a file that will still sound like it has quiet parts, and
+ * `wideNote` is the sentence that says so.
+ *
+ * Every figure is `null`-able: a file whose loudness could not be read is still a file whose peak can be,
+ * and the window renders the word rather than a sentinel number.
+ */
+export interface LoudnessView {
+  readonly integratedLufs: number | null;
+  readonly rangeLu: number | null;
+  readonly loudestLufs: number | null;
+  readonly integratedText: string;
+  readonly rangeText: string;
+  /** True when the spread is wider than a delivery target allows. */
+  readonly isWide: boolean;
+  /** The sentence explaining a wide file, or `null` when it is not wide. */
+  readonly wideNote: string | null;
+}
 
 /** One sound file a run would also write. */
 export interface AudioFileView {
@@ -170,6 +196,9 @@ export interface PlanView {
   readonly trimDb: number;
   readonly makeupDb: number;
   readonly ceilingDbfs: number;
+  /** How hard the leveler levels, and whether there is one. See `Settings.levelingDb`. */
+  readonly levelingDb: number;
+  readonly levelsDynamics: boolean;
   readonly chainNote: string;
   readonly chainHelp: Readonly<Record<string, string>>;
   readonly gainDb: number;
@@ -275,6 +304,7 @@ export type EngineEvent =
   | { readonly type: "job-started"; readonly job: string; readonly source: string }
   | { readonly type: "media"; readonly job: string; readonly media: MediaView }
   | { readonly type: "measured"; readonly job: string; readonly levels: LevelsView }
+  | { readonly type: "loudness"; readonly job: string; readonly loudness: LoudnessView }
   | { readonly type: "plan"; readonly job: string; readonly plan: PlanView }
   | { readonly type: "stage"; readonly job: string; readonly label: string }
   | ({ readonly type: "progress"; readonly job: string } & TickView)
@@ -320,6 +350,7 @@ export interface NormalizeRequest {
   readonly targetDbfs: number;
   readonly strategy: string;
   readonly makeupDb?: number;
+  readonly levelingDb?: number;
   readonly ceilingDbfs?: number;
   readonly trimDb?: number;
   readonly audio: readonly AudioFormat[];

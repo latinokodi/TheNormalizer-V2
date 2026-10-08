@@ -290,7 +290,12 @@ def test_the_compressor_s_makeup_is_left_at_unity_and_the_drive_is_the_fader():
     plan = a_plan(strategy="chain", makeup_db=12.0, ceiling_dbfs=-6.0)
     graph = normalizer.sound_graph(plan)
     assert "makeup=1," in graph or graph.endswith("makeup=1,alimiter=limit=0.501187:release=50:level=0")
-    assert graph.startswith("volume="), "the run's gain is in front of the chain"
+    # The run's gain is in front of the **compressor**, which is what this pins: `makeup` is a multiplier
+    # that cannot attenuate, so a loud file has to come down somewhere and the fader is that somewhere.
+    # It is no longer the *first* element — the leveler is, deliberately, because relative level has to be
+    # decided before absolute level — so what is asserted is the order, not the position.
+    assert "volume=" in graph.split("acompressor=")[0], "the run's gain is in front of the compressor"
+    assert "volume=" in graph.split("alimiter=")[0], "and so is the leveler, when there is one"
 
 
 def test_the_limiter_s_automatic_level_is_off():
@@ -299,8 +304,49 @@ def test_the_limiter_s_automatic_level_is_off():
     assert "level=0" in normalizer.sound_graph(plan)
 
 
+def test_the_leveler_is_first_and_can_be_turned_off():
+    """The leveler decides how far apart the quiet and loud parts are, so it runs **before** the fader.
+
+    Order is the whole of it. `speechnorm` changes *relative* level; the front fader changes *absolute*
+    level and so decides how hard the result hits the limiter; the limiter decides where the peaks stop. Put
+    the leveler anywhere but first and it is levelling a signal whose dynamics the limiter has already
+    flattened, which wastes it and fights the fader.
+
+    Zero has to reach the operator's chain untouched — that is the setting this product shipped with, and it
+    stays reachable.
+    """
+    from conftest import a_plan
+
+    leveled = normalizer.sound_graph(a_plan(strategy="chain", leveling_db=12.0))
+    assert leveled.startswith("speechnorm=e=12.000000,"), leveled
+    assert leveled.index("speechnorm=") < leveled.index("volume=")
+    assert leveled.index("volume=") < leveled.index("acompressor=")
+    assert leveled.index("acompressor=") < leveled.index("alimiter=")
+
+    off = normalizer.sound_graph(a_plan(strategy="chain", leveling_db=0.0))
+    assert "speechnorm" not in off, "zero is the operator's chain and nothing else"
+    assert off.startswith("volume="), off
+
+    # And it is capped at the filter's own ceiling rather than passed through, because `speechnorm` rejects
+    # an expansion above 30 and a rejection arrives as a failed run rather than as a refusal.
+    capped = normalizer.sound_graph(a_plan(strategy="chain", leveling_db=999.0))
+    assert "speechnorm=e=30.000000," in capped, capped
+
+
 def test_no_command_reaches_for_a_filter_this_product_did_not_promise():
-    forbidden = ("dynaudnorm", "loudnorm", "ebur128", "aresample=async", "speechnorm")
+    """The filters this product does **not** use, and the one it now does.
+
+    `speechnorm` was on this list and has been taken off it deliberately: the report that the quieter parts
+    of a normalized interview still sounded quiet was correct, because the operator's chain contains no
+    gain reduction at all — its compressor is `ratio=1` — so a `chain` run changed only the dynamics its
+    limiter clamped. `speechnorm` is ffmpeg's own speech normalizer and is what this product is for; see
+    `DEFAULT_LEVELING` for the measurement that chose it and the figure it runs at.
+
+    The rest stay forbidden. `dynaudnorm` is not used, `loudnorm` is measured for its report and never
+    placed in a run's graph, and `ebur128` likewise: this is a peak normalizer, and a loudness filter in the
+    signal path would change what every figure in it means.
+    """
+    forbidden = ("dynaudnorm", "loudnorm", "ebur128", "aresample=async")
     for strategy in ("gain", "chain", "ceiling"):
         plan = a_plan(strategy=strategy)
         for command in normalizer.normalize_commands(plan, Path("C:/work")):

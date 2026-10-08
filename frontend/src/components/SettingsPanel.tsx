@@ -135,6 +135,27 @@ export function SettingsPanel({ settings, onChangeApplied, health, busy }: Props
           episode; go to <span className="figures">−1</span> to deliver hotter.
         </p>
 
+        <NumberField
+          id="leveling"
+          label="Even out"
+          unit="of leveling"
+          value={settings.levelingDb}
+          onCommit={(next) => set({ levelingDb: next })}
+          disabled={busy}
+        />
+        {/*
+          This control is the one that answers the report that a normalized interview still had quiet parts,
+          and it is why it has a line of its own rather than sharing Drive's. `Level` decides how loud the
+          file is; `Even out` decides how far apart its own quiet and loud parts are; `Drive` decides how
+          hard the peaks are pushed down to reach the level. Only this one changes what a person means by
+          "the guest sounds quiet".
+        */}
+        <p className="setting__hint">
+          Lifts the quiet passages toward the loud ones so a file sounds even all the way through.{" "}
+          <span className="figures">12</span> is where this was tuned. Still quiet? Raise it. Flat or
+          squashed? Lower it.
+        </p>
+
         <div className="setting setting--toggles">
           <span className="setting__label">Also write</span>
           <div className="setting__control">

@@ -42,11 +42,20 @@ Add media — several files at once, video or audio — choose the level, press 
 
 | Control | What it decides |
 |---|---|
-| **Target** | the peak every finished file will have, in dBFS. −6.0 by default, which is where a stitched episode sits |
-| **Sound** | how the sound gets there: one gain, the operator's chain, or a gain with a limiter |
-| **Make up** | how hard the material is driven into the chain's limiter. +12 dB is the operator's own setting |
-| **Limiter** | the level the chain will not let a sample past. −6 dBFS is the operator's own setting |
+| **Level** | the peak every finished file will have, in dBFS. −6.0 by default, which is where a stitched episode sits |
+| **Even out** | how far the quiet passages are lifted toward the loud ones. 12 is where this was tuned; **0 leaves the sound's own dynamics completely alone** |
 | **Also write** | an uncompressed WAV, a 320 kbps MP3, or both, beside each master |
+| **Drive** | how hard the sound is pushed into the chain's limiter, which decides how hard the peaks are squashed on the way to the level. +12 dB is the edit bay's setting |
+
+Three figures, and only one of them is about loudness. **Level** decides how loud the file is. **Even out**
+decides how far apart its own quiet and loud parts are — the control that makes an interview sound like one
+recording rather than two. **Drive** decides how hard the peaks are pushed down to get there, which is a
+question about character rather than about level, because the level is reached whatever it is set to.
+
+Measured on a 13-minute interview, 820 seconds of sound: the quietest fifth of the file moved **+18.4 dB**
+against the loudest fifth's **+4.1**, taking a **21.8 dB** spread down to **7.5 dB**. With `Even out` at 0 —
+the operator's filters and nothing else, which is what this product did before — the same file closed 2.6 dB
+of that gap. If a file comes out flat or squashed, lower it; if the quiet parts are still quiet, raise it.
 
 Each finished file is written **beside its source**, named `<name> - normalized.<ext>`. **Nothing is ever
 written over** — a name that is taken steps aside to `2`, then `3` — and your originals are never touched.
@@ -113,7 +122,7 @@ naming the file in the way, and the normalized file still goes out.
 | `backend/normalizer/` | the engine: `process.py` (the only module that spawns anything), `media.py` (what a file is), `normalize.py` (the plan, the graphs, the run, the sound files), `verify.py` (measuring what was written) |
 | `backend/server.py` | the loopback HTTP and event-stream API the window talks to. Transport only — no normalizing logic |
 | `frontend/` | React + Vite + TypeScript, plain CSS over a design-token file. No CSS framework |
-| `electron/` | the window: starts the engine, proves it is *this* engine, opens a page on it, and opens at the size of its content rather than maximized |
+| `electron/` | the window: starts the engine, proves it is *this* engine, opens a page on it, and opens at 1180x880 — the size of its content — rather than maximized |
 | `scripts/bootstrap.ps1` | everything `start.bat` deliberately does not do |
 
 The window and the engine share one origin: the engine serves the built page. That is not a preference — a

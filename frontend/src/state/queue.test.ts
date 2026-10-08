@@ -24,6 +24,7 @@ function aRow(overrides: Partial<QueueRow> = {}): QueueRow {
     stage: "reading",
     media: null,
     sourceLevels: null,
+  loudness: null,
     plan: null,
     outcome: null,
     error: null,

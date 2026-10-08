@@ -135,6 +135,29 @@ what every existing setting sounds like, so it is a decision rather than a fix. 
 measures any drive value against any material, and `scripts/loudness_profile.py` reports two files window by
 window.
 
+## 6c. What the leveler does, and the one place it misses
+
+Measured on the 13-minute interview that raised the report — 820 seconds of sound, pauses dropped:
+
+| | source | normalized | moved |
+|---|---|---|---|
+| quietest fifth | −41.0 LUFS | −22.7 LUFS | +18.4 dB |
+| loudest fifth | −19.3 LUFS | −15.2 LUFS | +4.1 dB |
+| the gap between them | 21.8 dB | **7.5 dB** | closed by **14.2 dB** |
+
+The old chain closed 2.6 dB of the same gap, which is why the report said the quiet parts were still quiet.
+
+**And the honest miss: a levelled run can deliver a peak up to about 1.5 dB above the target.** On that file
+the delivered peak was **−4.60 dBFS against a −6.0 target**. The cause is measured rather than guessed: the
+stage pass corrects the codec overshoot it measured (+2.50 dB), and the master's own encode then adds
++1.40 dB more, because a levelled master is dense and AAC's ring grows with the density. The overshoot is not
+a constant, so one correction pass cannot land on it. `PEAK_TOLERANCE_DB` is 2.0 dB because of this
+measurement, not in spite of it, and the report prints the delivered figure so an operator can see it.
+
+Closing the gap would need a second measurement pass over the encoded master — one more full encode per file,
+about a quarter more time — against a decibel and a half. It is not done, and it is written here rather than
+left for somebody to discover.
+
 ## 7. What is not checked
 
 - **No test in `backend/tests` runs a real ffmpeg.** The suite launches none except the one `/api/health`

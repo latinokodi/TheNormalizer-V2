@@ -206,7 +206,7 @@ def arguments() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description="Render TheNormalizer's window and check it.")
     parser.add_argument("--width", type=int, default=1180)
-    parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--height", type=int, default=880)
     parser.add_argument("--shot", default="01-empty.png", help="the screenshot's name under docs/shots")
     return parser.parse_args()
 
@@ -219,7 +219,7 @@ def main() -> int:
         print(r"  venv\Scripts\python.exe backend\server.py")
         return 1
     print(f"engine:  {health['product']} {health['version']} — {health.get('versionLine', '')}")
-    print(f"window:  {options.width}x{options.height} (the application opens at 1180x760)")
+    print(f"window:  {options.width}x{options.height} (the application opens at 1180x880)")
 
     binary = browser()
     if binary is None:
@@ -369,9 +369,9 @@ def main() -> int:
         )
         check(
             "every control carries its own unit and one line of help",
-            len(helps) == 3
+            len(helps) == 4
             and all(one["hint"] for one in helps)
-            and [one["label"] for one in helps] == ["Level", "Also write", "Drive"],
+            and [one["label"] for one in helps] == ["Level", "Even out", "Also write", "Drive"],
             " · ".join(f"{one['label']} {one['unit']}".strip() for one in helps),
         )
         # The column's height is the number that decides how small the window can be, so it is asserted
@@ -383,9 +383,12 @@ def main() -> int:
             "const a = document.querySelector('.app__col--form .actions');"
             "return z.getBoundingClientRect().height + a.getBoundingClientRect().height;"
         )
+        # The figure that decides how small the window can be, asserted rather than eyeballed. Three
+        # controls and a checkbox pair with one hint each came to 655 px when every setting also had a zone
+        # header and a paragraph; it is a third less than that now, and this line stops it creeping back.
         check(
             "and the panel is a form, not an essay",
-            stacked < 380,
+            stacked < 460,
             f"the settings and the button come to {stacked:.0f} px of column, which is what decides how "
             f"small the window can be",
         )

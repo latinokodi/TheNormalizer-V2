@@ -88,6 +88,19 @@ export function ReportPanel({ row, onReveal }: Props) {
           <dd>{row.sourceLevels?.peakText ?? "—"}</dd>
           <dt>Measured mean</dt>
           <dd>{row.sourceLevels?.meanText ?? "—"}</dd>
+          {/*
+            How loud the file *sounds*, and how wide its own dynamics are — the pair that explains a file
+            whose peak is exactly on target and which still has quiet parts. The peak says what the
+            arithmetic ran on; these say what a person will hear, and the spread is the figure that says
+            whether the leveler has work to do. The word is rendered rather than a sentinel number when the
+            measurement could not be taken, for the same reason the peak is.
+          */}
+          <dt>Loudness</dt>
+          <dd>{row.loudness?.integratedText ?? "—"}</dd>
+          <dt>Spread</dt>
+          <dd className={row.loudness?.isWide === true ? "caution" : undefined}>
+            {row.loudness?.rangeText ?? "—"}
+          </dd>
           <dt>Size</dt>
           <dd>{media === null ? "—" : bytes(media.sizeBytes)}</dd>
         </dl>

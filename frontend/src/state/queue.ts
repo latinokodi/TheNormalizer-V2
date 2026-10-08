@@ -23,6 +23,7 @@
  */
 
 import type {
+  LoudnessView,
   CheckView,
   LevelsView,
   MediaView,
@@ -59,7 +60,15 @@ export interface QueueRow {
   stage: RowStage;
   media: MediaView | null;
   /** What the file measured *before* the run: the engine's reading of the source. */
-  sourceLevels: LevelsView | null;
+  readonly sourceLevels: LevelsView | null;
+  /**
+   * How loud this file sounds and how wide its own dynamics are, once something has measured it.
+   *
+   * It arrives from the probe when the file is added and from the run's own event stream when the
+   * run measures it again, and it changes nothing about the run: it is the figure that explains the
+   * file, not one that steers it. `null` means nothing has measured it yet.
+   */
+  readonly loudness: LoudnessView | null;
   /** What it will be. Provisional until the run has measured the codec. */
   plan: PlanView | null;
   outcome: OutcomeView | null;
@@ -111,13 +120,32 @@ export interface LogLine {
  * * `trimDb` is zero. It existed for matching how loud two files *feel* rather than how loud they peak,
  *   which is a real thing and not what this window is for;
  * * `audio` is empty. The sound files are a deliberate extra, and they are still offered — as two
- *   checkboxes under the one control that produces them, not as a third setting.
+ *   checkboxes under the one control that produces them, not as a fourth setting.
+ *
+ * ## Why `levelingDb` is the exception, and a third control
+ *
+ * Because it is the control that makes the product do what its name says. Everything else here changes the
+ * *level* of a file; the leveler changes the distance between its own quiet and loud parts, which is the
+ * thing an operator means when they say an interview's guest "sounds quiet" while the file's peak is
+ * exactly where they asked for it.
+ *
+ * It was a hidden constant for one revision and that was a defect: with the operator's chain — whose
+ * compressor is `ratio=1` and therefore transparent — a run moved a file's quiet parts +3.7 dB and its loud
+ * parts +6.3, which is the report that found it. See `DEFAULT_LEVELING` in the engine for the measurement
+ * and for why twelve.
  */
 export interface Settings {
   /** The peak every finished file will have, in dBFS. The one number the operator is choosing. */
   readonly levelDbfs: number;
   /** How hard the material is driven into the limiter, in decibels. */
   readonly driveDb: number;
+  /**
+   * How hard the leveler levels the material before the chain, in decibels of its own expansion.
+   *
+   * Zero is no leveler at all: the operator's chain and nothing else, which is what this product did before
+   * the report that a normalized interview still had quiet parts.
+   */
+  readonly levelingDb: number;
   readonly strategy: Strategy;
   readonly trimDb: number;
   /** The extra sound files to write beside each master. */
@@ -134,6 +162,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   levelDbfs: -6.0,
   driveDb: 12.0,
+  levelingDb: 12.0,
   strategy: "chain",
   trimDb: 0.0,
   audio: [],
@@ -159,6 +188,7 @@ export function requestOf(
     ceilingDbfs: settings.levelDbfs,
     strategy: settings.strategy,
     makeupDb: settings.driveDb,
+    levelingDb: settings.levelingDb,
     trimDb: settings.trimDb,
     audio: settings.audio,
   };

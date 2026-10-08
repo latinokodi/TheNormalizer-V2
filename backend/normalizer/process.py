@@ -253,6 +253,55 @@ class Levels:
         return self.max_dbfs is not None
 
 
+@dataclass(frozen=True)
+class Loudness:
+    """What ``ebur128`` measured over a whole stream: how loud it **sounds**, not how high it peaks.
+
+    ## Why both, and why this one is the one a person means
+
+    A peak is a number about one sample. Loudness is a number about what a listener hears, and the two
+    disagree by an amount that depends entirely on the material: two files at the same peak can sit six
+    decibels apart in perceived loudness, and an interview with a quiet guest against a loud host disagrees
+    with itself by twenty.
+
+    ``peak_dbfs`` is kept beside ``integrated_lufs`` deliberately, because the pair is the diagnosis: a file
+    whose peak is at the target and whose loudness is far below it is a file with a **wide spread**, and that
+    is the thing to report rather than to silently "fix" — see ``range_lu``.
+
+    ``None`` throughout means the measurement said ``-inf``, which is what it says for digital silence: not
+    a very quiet sound but the absence of one. A sentinel number would be a number somebody eventually does
+    arithmetic on.
+    """
+
+    #: Integrated loudness in LUFS (ITU-R BS.1770): the whole file's perceived level.
+    integrated_lufs: float | None
+    #: Loudness range in LU: how far apart the quiet and loud parts of it are.
+    range_lu: float | None
+    #: The loudest momentary figure, from the same pass. Not a true peak; a peak is ``Levels.max_dbfs``.
+    loudest_lufs: float | None
+
+    @property
+    def has_signal(self) -> bool:
+        return self.integrated_lufs is not None
+
+    @property
+    def is_wide(self) -> bool:
+        """Whether this file's spread is wider than a delivery target allows.
+
+        Seven LU is `loudnorm`'s own default target for a loudness range and is the figure broadcast
+        delivery is built around, so it is the figure used here rather than one invented for the purpose.
+        """
+        return self.range_lu is not None and self.range_lu > WIDE_RANGE_LU
+
+
+#: The loudness range above which a file is **wide**: too much of it is far below its own loud parts.
+#:
+#: Seven LU is what `loudnorm` targets by default, so it is a figure from the standard rather than one
+#: chosen here. Above it, a peak normalizer can deliver the peak exactly and the file will still have quiet
+#: parts that sound quiet — which is the report this constant exists to explain.
+WIDE_RANGE_LU = 7.0
+
+
 #: The level below which a sound is **silence**, and not merely quiet.
 #:
 #: 16-bit PCM cannot represent exact zero for a *negative* sample: the range is −32768..32767, so a
@@ -277,6 +326,57 @@ def _dbfs(text: str) -> float | None:
     except ValueError:
         return None
     return None if value <= SILENCE_DBFS else value
+
+
+def measure_loudness(path: Path, timeout: float = 1800.0) -> Loudness:
+    """Decode a whole stream and report how loud it sounds, and how wide its dynamics are.
+
+    ## Why `ebur128` and not the peak's `volumedetect`
+
+    Because they answer different questions and the product needed the other one. `volumedetect` says what
+    the largest sample was; `ebur128` implements ITU-R BS.1770, which is a model of the ear — it weights the
+    spectrum, gates out the silence, and reports what a listener would call the level. Measured on a
+    13-minute interview: peak −1.10 dBFS, integrated loudness −23.4 LUFS, range 12.8 LU. The peak was a
+    perfectly delivered figure and told the operator nothing about the twelve decibels of quiet between the
+    loud parts.
+
+    ## The parse, and why it is fragile in exactly one direction
+
+    `ebur128` prints a status line ten times a second and a summary block at the end. The summary is read
+    for the integrated figure and the range, and the status lines for the loudest moment. This is scraping a
+    human-readable report, so an ffmpeg that reworded it would break the parse — which is why a missing
+    summary yields `None` fields rather than an exception: a file whose loudness cannot be read is still a
+    file whose peak can be, and the run must not stop over a figure that is a *report* rather than a
+    *control*.
+    """
+    args = [
+        tool("ffmpeg"), "-hide_banner", "-nostats", "-vn", "-i", str(path),
+        "-af", "ebur128=peak=none", "-f", "null", "-",
+    ]
+    _, _, err = capture(args, timeout=timeout)
+
+    integrated: float | None = None
+    spread: float | None = None
+    summary = err.rfind("Integrated loudness")
+    if summary >= 0:
+        tail = err[summary:]
+        found = re.search(r"I:\s*(-?[\d.]+|-inf)\s*LUFS", tail)
+        if found:
+            integrated = _dbfs(found.group(1))
+        found = re.search(r"LRA:\s*(-?[\d.]+)\s*LU", tail)
+        if found:
+            spread = float(found.group(1))
+
+    moments = [
+        _dbfs(value)
+        for value in re.findall(r"t:\s*[\d.]+.*?M:\s*(-?[\d.]+|-inf)", err)
+    ]
+    present = [one for one in moments if one is not None]
+    return Loudness(
+        integrated_lufs=integrated,
+        range_lu=spread,
+        loudest_lufs=max(present) if present else None,
+    )
 
 
 def measure_levels(path: Path, timeout: float = 1800.0) -> Levels:

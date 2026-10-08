@@ -23,8 +23,8 @@ port, and the last thing the engine printed. A white screen with no text is a de
 
 | Step | Expected |
 |---|---|
-| Look at the window when it opens | it is **1180x720, not maximized**. A form and a list have nothing to do with a 2560-wide display |
-| Drag it as small as it goes | it stops at 1100x600. The settings column gains a scrollbar if it needs one; the Normalize button is never cut off |
+| Look at the window when it opens | it is **1180x880, not maximized**. A form and a list have nothing to do with a 2560-wide display |
+| Drag it as small as it goes | it stops at 1100x760. The settings column gains a scrollbar if it needs one; the Normalize button is never cut off |
 | Drag it as large as it goes | the **log** gets the extra height. The settings do not stretch and the file list does not gain blank space |
 | Count the ways to add a file | **one**, in the queue's header. There were two buttons with the same label and the same dialog |
 | Read the settings column | two controls, each a label, a value with its unit, and one line of help. No headings over them and no paragraphs
@@ -32,7 +32,7 @@ port, and the last thing the engine printed. A white screen with no text is a de
 | Step | Expected |
 |---|---|
 | Look at the window when it opens | it is **1180x720 in the middle of the screen, not maximized**. A form and a list have nothing to do with a 2560-wide display |
-| Drag it as small as it goes | it stops at 1100x600. The settings column gains a scrollbar if it needs one; the Normalize button is never cut off |
+| Drag it as small as it goes | it stops at 1100x760. The settings column gains a scrollbar if it needs one; the Normalize button is never cut off |
 | Drag it as large as it goes | the **log** gets the extra height. The settings do not stretch and the file list does not gain blank space |
 
 ## 2. A batch of real files

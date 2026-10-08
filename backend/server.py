@@ -302,6 +302,44 @@ def _levels_json(peak: float | None, mean: float | None, seconds: float) -> dict
     }
 
 
+def _loudness_json(loudness: "process_module.Loudness | None") -> dict[str, Any]:
+    """How loud a file *sounds* and how wide its dynamics are, as the window reads it.
+
+    Both figures are ``None``-able and the window renders the word rather than a number, for the same reason
+    the peak does: a file whose loudness could not be measured is not a file that is very quiet, and a
+    sentinel number is arithmetic waiting to happen.
+
+    ``rangeText`` is the one an operator will act on. A spread of twenty LU against a delivery target of
+    seven is the sentence that explains why the quiet parts of an interview sound quiet, and it is a *fact
+    about the file* rather than about this run — which is why it is reported for the source before anything
+    has been done to it.
+    """
+    if loudness is None:
+        return {
+            "integratedLufs": None, "rangeLu": None, "loudestLufs": None,
+            "integratedText": "not measured", "rangeText": "not measured",
+            "isWide": False, "wideNote": None,
+        }
+    wide_note = None
+    if loudness.is_wide:
+        wide_note = (
+            f"this file's loud parts and quiet parts are {loudness.range_lu:.1f} LU apart, which is wider "
+            f"than the {normalizer.WIDE_RANGE_LU:.0f} LU a delivery target allows — the leveler is what "
+            f"closes that, so raise it if the quiet parts still sound quiet"
+        )
+    return {
+        "integratedLufs": loudness.integrated_lufs,
+        "rangeLu": loudness.range_lu,
+        "loudestLufs": loudness.loudest_lufs,
+        "integratedText": (
+            "silence" if loudness.integrated_lufs is None else f"{loudness.integrated_lufs:.1f} LUFS"
+        ),
+        "rangeText": "silence" if loudness.range_lu is None else f"{loudness.range_lu:.1f} LU",
+        "isWide": loudness.is_wide,
+        "wideNote": wide_note,
+    }
+
+
 def _audio_json(plan: normalizer.NormalizePlan) -> dict[str, Any]:
     """The sound files this run writes beside the master, and what they will weigh.
 
@@ -391,6 +429,12 @@ def _plan_json(plan: normalizer.NormalizePlan) -> dict[str, Any]:
         # whatever the chain did, so a ceiling that is too low costs dynamics and nothing else.
         "makeupDb": plan.spec.makeup_db,
         "ceilingDbfs": plan.spec.ceiling_dbfs,
+        # How hard the leveler levels, and whether there is one. It travels because it is the figure that
+        # decides how far apart the quiet and the loud parts of the finished file are — which is the thing
+        # this product is for — and because a run reported as "the quieter parts are still quiet" needs the
+        # number that explains it rather than a reassurance.
+        "levelingDb": plan.spec.leveling_db,
+        "levelsDynamics": plan.spec.leveling_db > 0.0,
         "chainNote": normalizer.dynamics_note(plan.spec.makeup_db, plan.spec.ceiling_dbfs),
         "chainHelp": dict(normalizer.CHAIN_HELP),
         "gainDb": plan.total_gain_db,
@@ -498,6 +542,26 @@ def _run_batch(batch: Batch) -> None:
                 "job": job.id,
                 "levels": _levels_json(levels.max_dbfs, levels.mean_dbfs, info.duration),
             })
+
+            # How wide this file's dynamics are, in the same pass over it that the run already makes. It is
+            # a report rather than a control, so a failure to read it is logged and the run continues: a file
+            # whose loudness cannot be measured is still a file whose peak can be.
+            loudness = None
+            try:
+                stage("measuring how wide the dynamics are")
+                loudness = prober.loudness(info)
+                publish({
+                    "type": "loudness",
+                    "job": job.id,
+                    "loudness": _loudness_json(loudness),
+                })
+                if loudness.is_wide:
+                    log(
+                        f"this file's loud parts and quiet parts are {loudness.range_lu:.1f} LU apart — "
+                        f"the leveler at {job.spec.leveling_db:.0f} is what closes that"
+                    )
+            except Exception as trouble:  # noqa: BLE001 — a report may not fail a run
+                log(f"the loudness of this file could not be measured ({trouble}); the run continues")
 
             stage("planning the gain")
             plan = normalizer.plan_normalize(job.spec, info, levels.max_dbfs, levels.mean_dbfs)
@@ -641,12 +705,15 @@ async def health(_request: web.Request) -> web.Response:
 
 
 async def probe(request: web.Request) -> web.Response:
-    """Measure one source: its streams, and what its sound peaks at.
+    """Measure one source: its streams, what its sound peaks at, and how wide its dynamics are.
 
-    The level measurement decodes the whole sound, which on a long file is seconds rather than
-    milliseconds — so this route is called when a file is *chosen* and the answer is kept, not on every
-    keystroke. See ``normalization-plans``: it takes the level as a request field for exactly that
-    reason.
+    Both measurements decode the whole sound, which on a long file is seconds rather than milliseconds — so
+    this route is called when a file is *chosen* and the answer is kept, not on every keystroke. See
+    ``normalization-plans``: it takes the level as a request field for exactly that reason.
+
+    The loudness figures are a **report and not a control**, so a file whose loudness cannot be read still
+    answers with its peak rather than refusing: the peak is what the arithmetic runs on, and a missing
+    number for a listener's benefit may not cost the operator the file.
     """
     path = Path(request.query.get("path", ""))
     if not path.is_file():
@@ -657,6 +724,11 @@ async def probe(request: web.Request) -> web.Response:
     except FFmpegError as failure:
         return web.json_response({"error": str(failure), "reason": "ffmpeg"}, status=400)
 
+    try:
+        loudness = await asyncio.to_thread(prober.loudness, info)
+    except FFmpegError:
+        loudness = None
+
     # The container's extension, and not the source's: a `.wav` is written as an `.m4a`, so a suggestion
     # carrying the source's extension would name a file the run does not write. It is worked out from the
     # probed file rather than guessed, which is the same reason `plan_normalize` settles the destination
@@ -666,6 +738,7 @@ async def probe(request: web.Request) -> web.Response:
     return web.json_response({
         "media": _describe(info),
         "levels": _levels_json(levels.max_dbfs, levels.mean_dbfs, info.duration),
+        "loudness": _loudness_json(loudness),
         "suggestedOutput": str(normalizer.output_for(path, _extension)),
     })
 
@@ -750,6 +823,10 @@ def _settings(body: dict[str, Any]) -> dict[str, Any]:
         # run that was planned.
         "makeup": _number(body.get("makeupDb"), "makeup", normalizer.DEFAULT_MAKEUP_DB),
         "ceiling": _number(body.get("ceilingDbfs"), "ceiling", normalizer.DEFAULT_CEILING_DBFS),
+        # How hard the leveler levels. A *setting* and not a hidden constant, because it is the figure that
+        # decides how far apart the quiet and the loud parts of the finished file are — which is what this
+        # product is for — and because zero has to be reachable: zero is the operator's chain and nothing else.
+        "leveling": _number(body.get("levelingDb"), "leveling", normalizer.DEFAULT_LEVELING),
         "trim": _number(body.get("trimDb"), "trim", 0.0),
         "audio": _audio_field(body.get("audio")),
         "bitrate": str(body.get("audioBitrate") or "192k"),
@@ -767,6 +844,7 @@ def _spec_from(
         strategy=settings["strategy"],
         makeup_db=settings["makeup"],
         ceiling_dbfs=settings["ceiling"],
+        leveling_db=settings["leveling"],
         trim_db=settings["trim"],
         audio_exports=settings["audio"],
         audio_bitrate=settings["bitrate"],

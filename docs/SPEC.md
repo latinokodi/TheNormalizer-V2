@@ -249,12 +249,21 @@ conversions and nothing more.
 
 **R26 — The window is two controls, and each one says what it does in words that do not have to be looked
 up.**
-**Level** is the peak every finished file will have; **Drive** is how hard the sound is pushed into the
-limiter. Everything else the engine accepts is either fixed at the value this product is for — the strategy,
+**Level** is the peak every finished file will have; **Even out** is how far the quiet parts are lifted
+toward the loud ones; **Drive** is how hard the sound is pushed into the limiter. Everything else the engine accepts is either fixed at the value this product is for — the strategy,
 the trim — or is not a decision the operator is making — a named destination, a bitrate. *Check:*
-`scripts/check_window.py` asserts that exactly two of the level, drive, strategy, target, make-up and
-ceiling fields exist on the page, and that each carries its prose. *Rationale:* a field whose label has to
+`scripts/check_window.py` asserts that exactly three of the level, even-out, drive, strategy, target,
+make-up and ceiling fields exist on the page, and that each carries its prose. *Rationale:* a field whose label has to
 be looked up is a field that gets left alone (feedback from the first use of the window).
+
+**R26b — The product reduces dynamic range, because that is what it is for.**
+A `chain` run places the operator's filters, and those filters contain **no gain reduction** — their
+compressor is `ratio=1`, transparent by design — so a run used to change only the dynamics its limiter
+clamped. Measured on a 13-minute interview, the quietest fifth moved +3.7 dB against the loudest fifth's
++6.3: a 21.8 LU spread barely touched. A leveler (`speechnorm`) now runs before the fader, because it decides
+*relative* level while everything after it decides absolute level. *Check:*
+`test_plan.py::test_the_leveler_is_first_and_can_be_turned_off`, `scripts/loudness_profile.py` — the same
+interview's gap is closed by **14.2 dB** with it and 2.6 dB without.
 
 **R27 — The level and the limiter are one number.**
 They were two fields for one decision. They travel as `targetDbfs` and `ceilingDbfs` from a single
@@ -268,8 +277,8 @@ report still states the path the engine will write. *Check:* `test_server.py::te
 `test_plan.py::test_the_container_replaces_the_extension_and_never_the_stem`.
 
 **R29 — The window is the size of its content, and it does not fill the screen.**
-It opens at 1180x720 and can be dragged down to 1100x600; it is never maximized. Its minimum is *checked*
-rather than declared: `scripts/check_window.py --width 1100 --height 600` renders the page at that size and
+It opens at 1180x880 and can be dragged down to 1100x760; it is never maximized. Its minimum is *checked*
+rather than declared: `scripts/check_window.py --width 1100 --height 760` renders the page at that size and
 asserts that the document does not overflow, that no control runs past an edge, and that the settings column
 scrolls rather than clipping its own Normalize button. The two numbers are `WINDOW_MINIMUM` in
 `electron/main.cjs` and `--frame-min-width`/`--frame-min-height` in `styles/tokens.css`. *Rationale:*

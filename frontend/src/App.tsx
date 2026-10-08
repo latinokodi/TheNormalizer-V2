@@ -39,6 +39,7 @@ import {
   reveal,
   type EngineEvent,
   type Health,
+  type LoudnessView,
   type NormalizeRequest,
   type PlanView,
 } from "./api";
@@ -75,7 +76,8 @@ export type Action =
   | { readonly type: "added"; readonly rows: readonly QueueRow[] }
   | { readonly type: "removed"; readonly keys: readonly number[] }
   | { readonly type: "cleared" }
-  | { readonly type: "read"; readonly key: number; readonly media: QueueRow["media"]; readonly levels: QueueRow["sourceLevels"]; readonly output: string | null }
+  | { readonly type: "read"; readonly key: number; readonly media: QueueRow["media"]; readonly levels: QueueRow["sourceLevels"]; readonly loudness: QueueRow["loudness"]; readonly output: string | null }
+  | { readonly type: "loudness"; readonly index: number; readonly loudness: LoudnessView }
   | { readonly type: "refused"; readonly key: number; readonly message: string; readonly reason: string | null }
   | { readonly type: "planned"; readonly key: number; readonly plan: PlanView; readonly output: string }
   | { readonly type: "planFailed"; readonly message: string }
@@ -143,12 +145,25 @@ export function reduce(state: Window, action: Action): Window {
                 ...row,
                 media: action.media,
                 sourceLevels: action.levels,
+                loudness: action.loudness,
                 output: action.output,
                 stage: "planned",
                 error: null,
                 reason: null,
               }
             : row,
+        ),
+      };
+
+    case "loudness":
+      // How wide this file's own dynamics are, measured during a run. Stored rather than acted on: the run's
+      // level does not depend on it — the leveler in the chain is what closes a wide spread, and that is a
+      // setting the operator chose before the run started. What it does is let the report say *why* a file
+      // whose peak is exactly on target still has quiet parts.
+      return {
+        ...state,
+        rows: state.rows.map((row, at) =>
+          at === action.index ? { ...row, loudness: action.loudness } : row,
         ),
       };
 
@@ -351,6 +366,13 @@ export function App() {
           // The row already has its plan: it was planned when the file was added, and the run's own plan
           // arrives again with the outcome. These four are for a client that attached mid-run.
           return;
+        case "loudness":
+          // How wide this file's own dynamics are — the figure that explains the file rather than one that
+          // steers the run. It is *not* among the four above, because a row that was planned when the file
+          // was added has no loudness yet: the measurement is taken during the run, and this is where the
+          // row learns it. Dropping it here would leave the report saying "not measured" for every file.
+          dispatch({ type: "loudness", index: indexOf(event.job), loudness: event.loudness });
+          return;
         case "stage":
           dispatch({ type: "stage", index: indexOf(event.job), label: event.label });
           return;
@@ -452,6 +474,7 @@ export function App() {
         key,
         media: probe.media,
         levels: probe.levels,
+        loudness: probe.loudness,
         output: probe.suggestedOutput,
       });
       // Planned straight away, so the row shows the level and any cautions before anything is pressed.
@@ -493,6 +516,7 @@ export function App() {
           stage: "reading" as const,
           media: null,
           sourceLevels: null,
+        loudness: null,
           plan: null,
           outcome: null,
           error: null,

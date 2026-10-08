@@ -69,15 +69,19 @@ const ROOT = path.join(__dirname, "..");
  * the sibling product used.
  *
  *   * **1100 wide** — the settings column takes 32 % of it, which is 352 px: measured, the column's content
- *     needs 284 px plus padding, and its help lines wrap at 46 characters. The file list gets the other
- *     748 px, which is a name, a level, a state, and the report's own facts beside them.
- *   * **600 tall** — bars 60, console floor 128, and the settings need 339 to be on screen without being
- *     scrolled. That leaves the file list 200 px, which is the queue's five-row floor: a window this size
- *     is tight, and it is tight rather than broken, which is what `scripts/check_window.py` checks.
- *   * **1180x720 to open** — the same three sums with 130 px more for the file list and its report.
+ *     needs a little over 300 px plus padding, and its help lines wrap at 46 characters. The file list gets
+ *     the other 748 px, which is a name, a level, a state, and the report's own facts beside them.
+ *   * **760 tall** — bars 60, the log's floor 152, and the settings need 449 px on screen without being
+ *     scrolled. That leaves the file list about 270 px, which is the queue's five-row floor plus a little.
+ *   * **1180x880 to open** — the same three sums with 120 px more for the file list and its report.
+ *
+ * The height grew by 160 px when **Even out** was added as a third control, and that is the honest cost of
+ * it: three settings with a line of help each needs more room than two, and a window that clipped them would
+ * be a window whose own control is off the bottom of it. The alternative — a shorter hint per control — was
+ * taken as far as it goes (the leveler's help was cut from three lines to two before this number was set).
  */
-const WINDOW_SIZE = { width: 1180, height: 720 };
-const WINDOW_MINIMUM = { width: 1100, height: 600 };
+const WINDOW_SIZE = { width: 1180, height: 880 };
+const WINDOW_MINIMUM = { width: 1100, height: 760 };
 
 /**
  * What the file dialogs offer, and it is one list for both kinds of file this product takes.

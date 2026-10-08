@@ -10,8 +10,8 @@
  * there is no mobile, and a professional tool that rearranges itself is a tool that cannot be learned by
  * muscle memory.
  *
- * The frame has a **1100x600** minimum, mirrored by `WINDOW_MINIMUM` in `electron/main.cjs` and checked
- * by `scripts/check_window.py --width 1100 --height 600` rather than declared. Inside the frame the only
+ * The frame has a **1100x760** minimum, mirrored by `WINDOW_MINIMUM` in `electron/main.cjs` and checked
+ * by `scripts/check_window.py --width 1100 --height 760` rather than declared. Inside the frame the only
  * things that scroll are the three wells that can hold an unbounded number of rows: the queue, the log and
  * the selected file's report — plus the settings column, which is the safety valve for a window at that
  * minimum. **The frame never scrolls.**

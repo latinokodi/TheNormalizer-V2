@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
-from .process import FFmpegError, capture, measure_levels, probe_json, tool
+from .process import FFmpegError, capture, measure_levels, measure_loudness, probe_json, tool
 
 #: A frame is black when its mean luma is at or below this. Video black is 16 in limited range and 0
 #: in full range; 20 admits both and still excludes a fade, which is at 30 and climbing by the time it
@@ -222,6 +222,26 @@ def probe(path: Path) -> MediaInfo:
             for stream in streams
         ),
     )
+
+
+def loudness(info: MediaInfo, timeout: float = 1800.0):
+    """``ebur128``'s figures for this file: how loud it sounds, and how wide its dynamics are.
+
+    A thin pass-through to ``process.measure_loudness``, like ``levels`` is to ``measure_levels``, so that a
+    caller does not have to hold two modules to ask one question.
+
+    ## Why this is a second decode rather than part of the first
+
+    It is the honest cost. ``volumedetect`` reports the two figures the *arithmetic* runs on — the source
+    peak decides the gain and the output peak proves the target was reached — and ``ebur128`` reports the two
+    figures a *person* cares about. No one filter reports all four, and swapping the peak measurement for a
+    loudness one would change what every number in this program means.
+
+    So a file with a sound is decoded twice when it is added: once for the peak, once for the loudness. On
+    the reference 17-minute episode that is about eight seconds each, and it buys the sentence that explains
+    a file's own dynamics — which is the thing an operator asked for by asking why the quiet parts are quiet.
+    """
+    return measure_loudness(info.path, timeout=timeout)
 
 
 def levels(info: MediaInfo, timeout: float = 1800.0):

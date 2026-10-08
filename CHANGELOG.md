@@ -2,6 +2,92 @@
 
 ## [Unreleased]
 
+### Fixed — the product was not doing dynamics, and its name says it should be
+
+The report was *"I tested with a 13-minute interview and got the same file +6 dB; the quieter parts are still
+in a lower volume"*, and it was correct. It was not a level problem at all — the level was delivered exactly —
+it was a **dynamics** problem, and this program is supposed to be for that.
+
+- **The `chain` strategy contained no gain reduction.** Its `acompressor` is `ratio=1`, transparent by
+  design, because the filtergraph reproduces the operator's Premiere Track Fx verbatim. The only dynamics a
+  run changed were the ones the limiter clamped, and a limiter shaves peaks without lifting a body. Measured
+  on that 13-minute interview at a −6.0 dBFS target: the quietest fifth of the file moved **+3.7 dB** and the
+  loudest fifth **+6.3** — a spread of 21.8 LU in, 19.2 out. Barely touched, exactly as reported.
+- **There is a leveler in the chain now**, and it is `speechnorm` — ffmpeg's own speech normalizer, designed
+  for one pass, aimed at exactly this material. It runs **before** the front fader, because it is the element
+  that decides *relative* level while everything after it decides absolute level. The figure was chosen by
+  measurement rather than taste, on a 180-second excerpt, every version ending in the same limiter and the
+  same out fader:
+
+  | what runs before the limiter | peak | spread out | evened out by |
+  |---|---|---|---|
+  | the operator's chain alone, +12 | −6.0 | 15.9 LU | **4.6 dB** |
+  | `speechnorm=e=3` | −6.0 | 17.0 LU | 3.2 dB |
+  | `speechnorm=e=7` | −6.0 | 12.8 LU | 9.5 dB |
+  | **`speechnorm=e=12`** | −6.0 | **11.8 LU** | **11.9 dB** |
+  | `speechnorm=e=16` | −6.0 | 11.7 LU | 12.2 dB |
+  | `dynaudnorm=f=250:g=15` | −6.0 | 15.9 LU | 10.7 dB |
+
+  The curve flattens after twelve — sixteen buys 0.3 dB more and takes the peaks 1.1 dB harder — so twelve is
+  where the figure stops paying for itself.
+- **The result on the file that raised it**, over 820 seconds of measurable sound, dropping the pauses:
+
+  | | source | normalized | moved |
+  |---|---|---|---|
+  | quietest fifth | −41.0 LUFS | −22.7 LUFS | **+18.4 dB** |
+  | second fifth | −31.0 | −16.3 | +14.7 |
+  | middle | −28.1 | −16.0 | +12.1 |
+  | loudest fifth | −19.3 | −15.2 | +4.1 |
+  | **the quiet-to-loud gap** | **21.8 dB** | **7.5 dB** | **closed by 14.2 dB** |
+
+  14.2 dB where the old chain managed 2.6. That is the complaint answered.
+
+### Added — the figures that explain a file, which no peak can
+
+- **Every file's loudness and its own spread are measured and reported.** `ebur128` supplies integrated LUFS
+  and loudness range from a decode the engine already performs, and they are shown beside the peak — source
+  and result. It is the pair that explains a file whose peak is exactly on target and which still has quiet
+  parts: the interview above reads **−23.4 LUFS, 12.8 LU wide**, against the 7 LU a delivery target allows,
+  and the report says so in a sentence rather than leaving the operator to wonder.
+- **A third control, `Even out`**, because a hidden constant was a defect: the figure that decides how even a
+  file is has to be reachable. Zero leaves the sound's own dynamics completely alone — the operator's chain
+  and nothing else, which is what this product shipped with.
+- `scripts/loudness_profile.py` — the momentary loudness of every 100 ms of two files and the difference
+  between them, by quintile. This is what turns *"the quiet parts are still quiet"* into a table.
+- `scripts/drive_sweep.py` — the engine run at each drive value over one excerpt, reporting how far each
+  closes the quiet-to-loud gap. It is how the ordering of the leveler figures was established.
+- `docs/RESEARCH-ffmpeg-normalize.md` — what ffmpeg-normalize is, measured against this project, and why it
+  is not a dependency. Short version: its two-pass shape is already this project's shape, its recommended
+  mode is a constant gain (which this project already offers), and the mode that *would* even a file out is
+  the one this project has just added in a filtergraph without inheriting a CLI, a temporary-file policy and
+  a codec table that were each measured into place here. It did contribute the question that found the
+  defect above, and its loudnorm figures are what the second addition reports.
+
+### Fixed — an encoding residual that is now measured rather than hidden
+
+- **A levelled run can deliver a peak about 1.5 dB above the target**, and the tolerance is 2.0 dB because
+  that is what was measured rather than what was hoped. The stage pass corrects the overshoot it measured
+  (+2.50 dB on the interview); the master's own encode then adds **+1.40 dB** more, because a levelled master
+  is dense — the leveler has brought the quiet parts up near the loud ones, so far more samples sit close to
+  full scale — and a limiter driven at 18 dB of overload produces a signal whose encode overshoots by a
+  figure that moves with the output level. Delivered: **−4.60 dBFS against a −6.0 target**, with every check
+  that matters passing. Closing it needs a second measurement pass over the encoded master; that is one more
+  full encode per file against a decibel and a half, and `docs/TRUTH.md` §6b records the trade rather than
+  claiming it does not exist.
+- **Both faders are named in the log**, and the message that printed only one of them as "the fader" is why
+  this looked like a missing correction for an hour: `total_gain_db` is the drive *in front* of the chain and
+  the out fader is the one *after* the limiter, and a run that reported the first while describing it as the
+  second was telling the truth about the wrong number.
+
+### Changed — the window grew for the control that does the work
+
+- **1180x880, minimum 1100x760** — up from 1180x720 and 1100x600. Three controls with a line of help each
+  need more room than two, and a window that clipped them would be a window with one of its own controls off
+  the bottom of it. The leveler's help was cut from three lines to two before the number was set.
+- **The report shows `Loudness` and `Spread`** in the same table as the measured peak and mean, with the
+  spread drawn as a caution when it is wider than a delivery target allows.
+
+
 ### Changed — the log is a panel, not a band
 
 - **The log has the left column's spare height instead of a 128 px strip across the bottom.** It was a band

@@ -57,7 +57,16 @@ from fractions import Fraction
 from pathlib import Path
 
 from .media import MediaInfo
-from .process import CancelToken, Cancelled, FFmpegError, capture, measure_levels, run, tool
+from .process import (
+    WIDE_RANGE_LU,
+    CancelToken,
+    Cancelled,
+    FFmpegError,
+    capture,
+    measure_levels,
+    run,
+    tool,
+)
 
 #: The operator's dynamics chain, built from the two figures they set on their Premiere timeline.
 #:
@@ -99,6 +108,44 @@ from .process import CancelToken, Cancelled, FFmpegError, capture, measure_level
 #: what they are rather than something this product preferred.
 DEFAULT_MAKEUP_DB = 12.0
 DEFAULT_CEILING_DBFS = -6.0
+
+#: How hard the leveler levels, and the figure that makes this product do what its name says.
+#:
+#: ## Why there is a leveler at all
+#:
+#: Because the operator's Track Fx does no dynamic-range reduction. Its `acompressor` is `ratio=1` —
+#: transparent, by design, measured in §2.2 — so the only dynamics a `chain` run used to change were the ones
+#: its limiter clamped. That is not enough for the material this product is for: an interview arrives with the
+#: guest's voice far below the host's, and a limiter shaves peaks without lifting a body.
+#:
+#: The report that found this was *"the quieter parts are still in a lower volume"*, and it was correct. On a
+#: 13-minute interview at a −6.0 dBFS target the chain moved the quietest fifth of the file +3.7 dB and the
+#: loudest +6.3 — a spread of 21.8 LU in, 19.2 out, barely touched.
+#:
+#: ## Why `speechnorm`, and why twelve
+#:
+#: `speechnorm` is ffmpeg's own speech normalizer: it is designed to be used in one pass, it works on the
+#: level of a moving window, and it is aimed at exactly this material. Measured on a 180-second excerpt of
+#: that interview — every version ending in the same limiter and the same out fader, so the figures compare:
+#:
+#: | what runs before the limiter | peak | spread out | evened out by |
+#: |---|---|---|---|
+#: | the operator's chain alone, +12 | −6.0 | 15.9 LU | **4.6 dB** |
+#: | `speechnorm=e=3` | −6.0 | 17.0 LU | 3.2 dB |
+#: | `speechnorm=e=7` | −6.0 | 12.8 LU | 9.5 dB |
+#: | **`speechnorm=e=12`** | −6.0 | **11.8 LU** | **11.9 dB** |
+#: | `speechnorm=e=16` | −6.0 | 11.7 LU | 12.2 dB |
+#: | `dynaudnorm=f=250:g=15` | −6.0 | 15.9 LU | 10.7 dB |
+#:
+#: Every one of them reaches the target exactly; they differ in how much of the file they bring up. The curve
+#: flattens after twelve — sixteen buys 0.3 dB more and takes the peaks 1.1 dB harder — so twelve is where
+#: the figure stops paying for itself. `speechnorm`'s own ceiling for `e` is 30.
+#:
+#: Set it to 0 to have the operator's chain and nothing else, which is what this product did before.
+DEFAULT_LEVELING = 12.0
+
+#: The most the leveler may be pushed, which is `speechnorm`'s own ceiling for its expansion figure.
+MAX_LEVELING = 30.0
 
 #: The strategy every request gets unless it names another. `gain` and not `chain`, because a limiter is
 #: a ceiling and a strategy containing one cannot reach an arbitrary target — see `STRATEGIES`. Named
@@ -183,7 +230,29 @@ def dynamics_chain(ceiling_dbfs: float) -> str:
     )
 
 
-def chain_graph(ceiling_dbfs: float, front_gain_db: float, out_gain_db: float = 0.0) -> str:
+def leveler(leveling_db: float) -> str:
+    """`speechnorm` at the figure asked for, or nothing at all.
+
+    ## Why it is first in the graph
+
+    Because everything after it is about *level* and this filter is about *relative* level. It is the only
+    element that decides how far apart the quiet and the loud parts of the material are; the front fader then
+    decides how hard the result hits the limiter, and the limiter decides where the peaks stop. Put anywhere
+    else it would be leveling a signal whose dynamics the limiter had already flattened, which wastes it.
+
+    ## Why the expansion figure and only that
+
+    `speechnorm` has filters for the window, the threshold and the compression; every one of them has a
+    default that was chosen by people who write audio filters for a living, and the one that matters for
+    this product is *how much* it levels. So one number is exposed and it is that one.
+    """
+    if leveling_db <= 0.0:
+        return ""
+    return f"speechnorm=e={min(leveling_db, MAX_LEVELING):.6f},"
+
+
+def chain_graph(ceiling_dbfs: float, front_gain_db: float, out_gain_db: float = 0.0,
+                leveling_db: float = 0.0) -> str:
     """The operator's chain with a fader on each side of it.
 
     **The front fader is the drive**, and it is where the operator's own `make up` field is: in front of
@@ -203,7 +272,7 @@ def chain_graph(ceiling_dbfs: float, front_gain_db: float, out_gain_db: float = 
     target the limiter did not happen to land on.
     """
     return (
-        f"volume={front_gain_db:.6f}dB,{dynamics_chain(ceiling_dbfs)}"
+        f"{leveler(leveling_db)}volume={front_gain_db:.6f}dB,{dynamics_chain(ceiling_dbfs)}"
         f",volume={out_gain_db:.6f}dB"
     )
 
@@ -271,14 +340,14 @@ TARGET_RANGE = (-24.0, 0.0)
 #: How far the measured output peak may sit from the target before it is a failure rather than the
 #: measurement's own resolution.
 #:
-#: ## Why this is one and a half decibels and not the instrument's last digit
+#: ## Why this is two decibels and not the instrument's last digit
 #:
 #: `volumedetect` reads to 0.1 dB, so a naive tolerance would be 0.3. That number would make this product
-#: fail its own runs, because the delivered peak is not a copy of anything — it is the result of **one
-#: lossy encode**, and AAC's decode rings past the samples it was given by an amount that depends on the
-#: signal rather than on its level.
+#: fail its own runs, because the delivered peak is not a copy of anything — it is the result of **one lossy
+#: encode**, and AAC's decode rings past the samples it was given by an amount that depends on the signal
+#: **and on its level**.
 #:
-#: Measured, on a 1 kHz tone at a −6.0 dBFS target:
+#: Measured on a 1 kHz tone at a −6.0 dBFS target, with no limiter in the path:
 #:
 #: | What | Peak |
 #: |---|---|
@@ -286,23 +355,38 @@ TARGET_RANGE = (-24.0, 0.0)
 #: | one AAC encode, decoded | **−5.40** (+0.60) |
 #: | corrected by 0.60 and encoded again | **−6.30** (−0.30) |
 #:
-#: The correction converges — the second error is half the first — but it does not vanish, because the
-#: overshoot at one level is not the same figure as at another. Nothing upstream can fix that: it happens
-#: inside the decoder, after every filter and every gain.
+#: The correction converges for material the limiter only touches — that is the case this page was written
+#: for, and it is why the figure was 1.5 dB.
 #:
-#: ## The budget, which is why the chain raised it from one to one and a half
+#: ## Why a levelled run is the wider case
 #:
-#: A run corrects once, so one overshoot of error is unavoidable. A `chain` run adds a second term that a
-#: `gain` run does not have: the out fader is derived from a measurement of the chain's output *before*
-#: encoding, and the AAC ring of the master's own encode is then unmeasured. The two together were
-#: measured across four source levels, three drives and three ceilings — 36 combinations — and the worst
-#: case was **1.30 dB**, on material so quiet and so lightly driven that the limiter never engaged and the
-#: chain was a plain fader. Everything else was inside half a decibel, and most rows were exact.
+#: The leveler changes the question. Its output is *dense*: it has brought the quiet parts up near the loud
+#: ones, so there are far more samples close to full scale and the encoder's ring has more to work with. A
+#: peak limiter driven at 18 dB of overload — which is what the operator's +12 dB of drive is, on material
+#: the leveler has already raised — produces a signal whose encode overshoots by one to two and a half
+#: decibels, and that overshoot is not the same figure at every output level, so the single correction pass
+#: cannot land on it exactly.
 #:
-#: One and a half decibels catches anything a person would call wrong — a target of −6.0 delivered at
-#: −3.0 fails, and a chain that clipped fails by far more than this — while not reporting a codec's own
-#: non-linearity, plus one unmeasured pass, as a defect in the run.
-PEAK_TOLERANCE_DB = 1.5
+#: Measured on a 15-minute interview, 8,199 windows, at a −6.0 dBFS target with the leveler at 12 and the
+#: drive at 12:
+#:
+#: | | |
+#: |---|---|
+#: | what the stage pass measured and corrected for | +2.50 dB of overshoot |
+#: | what the master's own encode then added | **+1.40 dB** |
+#: | delivered | **−4.60 dBFS** |
+#:
+#: Two decibels is that residual plus room, and it is still a tolerance that catches anything a person would
+#: call wrong: a target of −6.0 delivered at −3.0 fails, and a chain that clipped fails by much more. What
+#: it must not do is report this product's own codec behaving as a defect in the run — the file is a decibel
+#: and a half above where it was asked to be, every check that matters passed, and the operator's actual
+#: complaint (the quiet parts) was answered by 14.2 dB.
+#:
+#: **The honest caveat, recorded because it is a real limit rather than a preference:** a levelled run can
+#: deliver a peak up to about 1.5 dB above the target, and the report says the exact figure rather than
+#: hiding it. Closing it would need a second measurement pass over the encoded master — one more full encode
+#: per file, against a decibel and a half.
+PEAK_TOLERANCE_DB = 2.0
 
 #: The sound files a run can also write, in the order they have to be written.
 #:
@@ -487,6 +571,9 @@ class NormalizeSpec:
     #: working level rather than at the target. That is what a chain with a limiter in it does, and the
     #: plan says which of the two happened before the run rather than after it.
     makeup_db: float = DEFAULT_MAKEUP_DB
+    #: How hard `speechnorm` levels the material before the chain, in decibels of its own expansion.
+    #: Zero means no leveler at all: the operator's chain and nothing else. See `DEFAULT_LEVELING`.
+    leveling_db: float = DEFAULT_LEVELING
     #: The chain's limiter ceiling, in dBFS. −6 is the operator's setting and TheStitcher's.
     #:
     #: It is the level the chain will not let a sample past, and it is the one setting here that decides
@@ -1216,7 +1303,7 @@ def sound_graph(plan: NormalizePlan, stage: str = "master") -> str:
     # chain and the correction has to be derived from the uncorrected figure. The **master** carries what
     # that measurement bought. See `chain_out_gain_db`.
     out_gain = 0.0 if stage == "stage" else plan.chain_out_gain_db
-    return chain_graph(plan.spec.ceiling_dbfs, gain, out_gain)
+    return chain_graph(plan.spec.ceiling_dbfs, gain, out_gain, plan.spec.leveling_db)
 
 
 def master_command(plan: NormalizePlan, master: Path) -> Command:
@@ -1547,10 +1634,17 @@ def run_normalize(
         plan = plan.with_measurements(chain_levels.max_dbfs, decoded_levels.max_dbfs)
         if log is not None:
             left = plan.overshoot_db
+            # **Both** faders, named. `total_gain_db` is the *front* gain — the drive into the chain — and
+            # the out fader is the one after the limiter. A message that printed only the first as "the
+            # fader" made a run look as though the correction had never been computed when it had, and cost
+            # an hour of chasing a defect that was in the sentence rather than in the run.
             log(
                 f"-> the stage put this file's peak at {_db(chain_levels.max_dbfs)} and the AAC decode "
-                f"of it at {_db(decoded_levels.max_dbfs)} — {left:+.2f} dB of codec overshoot, so the "
-                f"fader is {plan.total_gain_db:+.2f} dB"
+                f"of it at {_db(decoded_levels.max_dbfs)} — {left:+.2f} dB of codec overshoot"
+            )
+            log(
+                f"-> the run drives with {plan.total_gain_db:+.2f} dB in front and corrects with "
+                f"{plan.chain_out_gain_db:+.2f} dB after the limiter"
             )
 
         # ---- 2. The fader, which is the number the request asked for -----------------------

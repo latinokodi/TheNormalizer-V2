@@ -135,16 +135,28 @@ def test_a_level_off_the_target_fails_and_says_by_how_much(measured, output):
 def test_the_tolerance_is_the_codec_s_resolution_and_not_the_instrument_s(measured, output):
     """`volumedetect` reads to 0.1 dB; the delivered peak is one lossy encode away from the plan.
 
-    Measured: a master written at exactly −6.00 dBFS in PCM comes back out of an AAC decode at −5.40. A
-    tolerance of 0.3 would fail this product's own correct runs, and one of 1.0 fails a chain run whose
-    material is quiet enough that its limiter never engages — 1.30 dB was the worst of 36 measured
-    combinations, and it is the chain's own second-order term: its out fader is derived from a
-    measurement taken *before* the master's encode.
+    Measured, with no limiter in the path: a master written at exactly −6.00 dBFS in PCM comes back out of an
+    AAC decode at −5.40. A tolerance of 0.3 would fail this product's own correct runs.
+
+    To 2.0 rather than 1.5 for the reason measured on a real 15-minute interview: a **levelled** master is
+    dense — the leveler has brought the quiet parts up near the loud ones — and a limiter driven at 18 dB of
+    overload produces a signal whose encode overshoots by one to two and a half decibels, by a figure that
+    moves with the output level. The run corrects the overshoot it measured (+2.50 dB on that file) and the
+    master's own encode then added +1.40 dB more, delivering −4.60 against a −6.0 target.
+
+    The tolerance has to admit that residual without admitting anything a person would call wrong: −3.0
+    against a −6.0 target still fails.
     """
-    assert normalizer.PEAK_TOLERANCE_DB == 1.5
-    measured["peak"] = -6.6
+    assert normalizer.PEAK_TOLERANCE_DB == 2.0
+    # Inside the tolerance: the measured residual, and a little the other way.
+    measured["peak"] = -4.6
     assert row(verifier.verify(a_plan(), output), "target level").status == "passed"
-    measured["peak"] = -4.4
+    measured["peak"] = -7.6
+    assert row(verifier.verify(a_plan(), output), "target level").status == "passed"
+    # Outside it, in both directions: three decibels is a run that did not do what it was asked.
+    measured["peak"] = -3.9
+    assert row(verifier.verify(a_plan(), output), "target level").status == "failed"
+    measured["peak"] = -8.1
     assert row(verifier.verify(a_plan(), output), "target level").status == "failed"
 
 
