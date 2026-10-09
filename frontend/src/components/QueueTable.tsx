@@ -83,7 +83,7 @@ export function QueueTable({
   })();
 
   return (
-    <section className="zone" aria-label="The queue">
+    <section className="zone zone--queue" aria-label="The queue">
       <div className="zone__head">
         <h2 className="zone__title">Queue</h2>
         <span className={counts.failed > 0 ? "zone__note zone__note--caution" : "zone__note"}>

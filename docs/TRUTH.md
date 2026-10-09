@@ -225,6 +225,30 @@ Closing the gap would need a second measurement pass over the encoded master —
 about a quarter more time — against a decibel and a half. It is not done, and it is written here rather than
 left for somebody to discover.
 
+## 6d. Autodetect: what is checked, and the one thing that is not
+
+The detector is a **pure function over five numbers**, so nearly all of it is decidable without ffmpeg:
+
+| what | how |
+|---|---|
+| the rule, `even_out = spread − 7`, clamped | 14 unit tests in `backend/tests/test_detect.py` |
+| the behaviour, in the operator's words | 9 scenarios in `specs/features/autodetect.feature`, run by `test_detect_bdd.py` |
+| the route, its refusals and its `204` | 11 tests in `test_detect_server.py`, against the real application |
+| the button, and the request it builds | `scripts/check_suggest.py`, in a real browser |
+| the figures reaching a plan | `test_detect_server.py::test_what_the_detector_suggests_is_what_the_engine_will_run`, which turns a suggestion into a request and asserts the plan that comes back |
+
+**And the one thing that is not checked: a click on the button with a real file loaded.** The browser check
+confirms the button exists, is visible, is disabled with nothing selected, and carries the sentence explaining
+why; it also confirms that the URL the page builds for a set of measurements is the URL the route answers. What
+no check does is press it with a row whose measurements came from a real decode, because the DevTools protocol
+cannot hand this page a file. That path is a callback, a `fetch` and a state update, and it is the one part of
+the feature to try by hand.
+
+**The calibration is one measurement deep**, and `docs/AUTODETECT.md` §4 says so at length: the relationship
+between a file's spread and the evening it needs is known at exactly one point — a 13-minute interview that
+went from 21.8 LU to 7.5 LU at an `Even out` of 12. The rule is monotonic and calibrated there. Tones cannot
+calibrate it at all: `speechnorm` closed 99–100 % of a gated tone's spread at *every* setting, including 4.
+
 ## 7. What is not checked
 
 - **No test in `backend/tests` runs a real ffmpeg.** The suite launches none except the one `/api/health`

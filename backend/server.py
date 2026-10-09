@@ -61,6 +61,7 @@ from aiohttp import web
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from normalizer import detect
 from normalizer import media as prober  # noqa: E402
 from normalizer import normalize as normalizer  # noqa: E402
 from normalizer import verify as verifier  # noqa: E402
@@ -83,6 +84,7 @@ PORT = int(os.environ.get("PORT", "8767"))
 ROUTES = [
     "health",
     "probe",
+    "suggestions",
     "normalization-plans",
     "normalizations",
     "normalizations/current",
@@ -743,6 +745,84 @@ async def probe(request: web.Request) -> web.Response:
     })
 
 
+async def suggestions(request: web.Request) -> web.Response:
+    """The settings this file's own measurements suggest.
+
+    ## Why the figures arrive in the query rather than being measured here
+
+    Because the window already has them. Every file is measured when it is added — the peak, the integrated
+    loudness, the range — and those figures travel with every later request for exactly that reason. A route
+    that measured the file again would decode its whole sound a second time to answer a question the caller
+    could already answer, and on a 17-minute episode that is eight seconds to be told something the caller
+    knew.
+
+    ## Why `204` when there is nothing to decide from
+
+    A file whose loudness could not be read has no spread, and a suggestion made from nothing is
+    indistinguishable from one made from something. `204` says *there is no suggestion* rather than *the
+    request was wrong*, which is the difference between a caller that should offer nothing and a caller that
+    should show an error.
+
+    ## Why a level outside the range is a `400` and not a clamp
+
+    The level is a delivery requirement. Clamping one would deliver the wrong thing quietly, which is worse
+    than refusing, so this answers `400` with the range in the sentence.
+    """
+    if request.query.get("peakDbfs") in (None, "") and request.query.get("integratedLufs") in (None, ""):
+        return web.json_response({"error": "no measurements were given to suggest from"}, status=400)
+
+    try:
+        measured = detect.Measurements(
+            peak_dbfs=_optional_number(request.query.get("peakDbfs"), "peakDbfs"),
+            integrated_lufs=_optional_number(request.query.get("integratedLufs"), "integratedLufs"),
+            range_lu=_optional_number(request.query.get("rangeLu"), "rangeLu"),
+            loudest_lufs=_optional_number(request.query.get("loudestLufs"), "loudestLufs"),
+            mean_dbfs=_optional_number(request.query.get("meanDbfs"), "meanDbfs"),
+        )
+    except ValueError as trouble:
+        return web.json_response({"error": str(trouble), "reason": "input"}, status=400)
+
+    target = request.query.get("targetDbfs")
+    makeup = request.query.get("makeupDb")
+    spread = request.query.get("spreadLu")
+
+    try:
+        suggestion = detect.suggest(
+            measured,
+            target_dbfs=None if target in (None, "") else _number(target, "targetDbfs", 0.0),
+            makeup_dbfs=None if makeup in (None, "") else _number(makeup, "makeupDb", 0.0),
+            spread=None if spread in (None, "") else _number(spread, "spreadLu", 0.0),
+        )
+    except ValueError as trouble:
+        return web.json_response({"error": str(trouble), "reason": "input"}, status=400)
+
+    if suggestion is None:
+        # Nothing went wrong; there is simply nothing to decide from, and the caller is told which figure was
+        # missing rather than being handed a default.
+        return web.Response(status=204)
+
+    return web.json_response({
+        "product": PRODUCT,
+        "suggestion": _suggestion_json(suggestion),
+    })
+
+
+def _suggestion_json(suggestion: "detect.Suggestion") -> dict[str, Any]:
+    """A suggestion as the window reads it.
+
+    `reasons` is a list and not a string: each line is about one figure, and a caller that wants to show them
+    against the fields they explain needs them apart rather than joined.
+    """
+    return {
+        "levelDbfs": suggestion.level_dbfs,
+        "evenOut": suggestion.even_out,
+        "makeupDb": suggestion.makeup_dbfs,
+        "spreadLu": suggestion.spread_lu,
+        "levelsDynamics": suggestion.levels_dynamics,
+        "reasons": list(suggestion.reasons),
+    }
+
+
 async def _body(request: web.Request) -> Any:
     """The request's JSON, or a refusal saying what arrived instead.
 
@@ -755,6 +835,31 @@ async def _body(request: web.Request) -> Any:
         return await request.json()
     except ValueError as malformed:
         raise normalizer.InputRefused(f"the request body is not JSON: {malformed}") from None
+
+
+def _optional_number(value: Any, field: str) -> float | None:
+    """A measurement from a query string, or `None` — and a `ValueError` when it is present but not a number.
+
+    ## Why absent and unreadable are different answers
+
+    A measurement that was **not taken** is `None`, and the detector treats it as a figure it does not have: it
+    decides from what it does have, or answers that there is nothing to decide from. A measurement that was
+    *given* and cannot be read is a mistake in the request, and it has to say so — a route that read
+    `peakDbfs=loud` as "no peak was given" would silently answer a different question from the one asked.
+
+    The error names the field, because "invalid input" is not a thing a person can fix.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} has to be a number, and {value!r} is not") from None
+    if parsed != parsed or parsed in (float("inf"), float("-inf")):
+        # `nan` and the infinities parse as floats and would travel into arithmetic that produces nonsense
+        # rather than an error. A measurement is a finite number or it is absent.
+        raise ValueError(f"{field} has to be a finite number, and {value!r} is not")
+    return parsed
 
 
 def _number(value: Any, field: str, default: float) -> float:
@@ -1184,6 +1289,7 @@ def build_app() -> web.Application:
         web.get("/api", index),
         web.get("/api/health", health),
         web.get("/api/probe", probe),
+        web.get("/api/suggestions", suggestions),
         web.post("/api/normalization-plans", normalization_plans),
         web.post("/api/normalizations", start_batch),
         web.get("/api/normalizations/current", current_batch),

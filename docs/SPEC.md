@@ -274,6 +274,14 @@ clamped. Measured on a 13-minute interview, the quietest fifth moved +3.7 dB aga
 `test_plan.py::test_the_leveler_is_first_and_can_be_turned_off`, `scripts/loudness_profile.py` — the same
 interview's gap is closed by **14.2 dB** with it and 2.6 dB without.
 
+**R26c — The window can propose the settings for the file it is looking at.**
+**Autodetect**: the engine reads the measurements it already took — peak, integrated loudness, loudness range —
+and proposes **Level**, **Even out** and **Make up** for that file, each with the reason it was chosen. The
+window offers it as **Suggest** and applies the answer through the same path a typed edit takes, so a
+suggestion and an edit cannot produce different runs. *Check:* `test_detect.py` (14 unit tests, no ffmpeg),
+`test_detect_bdd.py` (9 scenarios from `specs/features/autodetect.feature`), `test_detect_server.py` (11 tests
+against the real app), and `scripts/check_suggest.py` in a real browser. *Design:* `docs/AUTODETECT.md`.
+
 **R27 — The level and the limiter are one number.**
 They were two fields for one decision. They travel as `targetDbfs` and `ceilingDbfs` from a single
 `levelDbfs`, so the request cannot be built with them out of step. *Check:*
@@ -355,6 +363,7 @@ wrote — not from the plan's paths, which is what would offer an older file whe
 | R24 | `test_server.py::test_the_batch_reports_a_job_per_file_when_it_finishes` |
 | R25 | review of `api.ts` against `server.py`; `format.test.ts`, `queue.test.ts` |
 | R26 | `scripts/check_window.py` |
+| R26c | `test_detect.py`, `test_detect_bdd.py`, `test_detect_server.py`, `scripts/check_suggest.py` |
 | R27 | `queue.test.ts::sends one number as both the level and the limiter` |
 | R28 | `test_server.py::test_a_batch_of_several_files_given_one_output_path_is_refused` |
 | R29 | `scripts/check_window.py` at both sizes |

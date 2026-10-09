@@ -118,6 +118,26 @@ export interface LevelsView {
   readonly secondsText: string;
 }
 
+/**
+ * What the engine suggests for a file, from that file's own measurements.
+ *
+ * Every figure carries its `reasons`: one line per figure, in the operator's words, naming the measurement it
+ * came from. A recommendation without its reasoning is a number the operator has to take on trust, and this
+ * product's position on trust is that it does not ask for it — see `docs/TRUTH.md`.
+ */
+export interface SuggestionView {
+  /** The peak the finished file will have. The operator's delivery figure, carried through unchanged. */
+  readonly levelDbfs: number;
+  /** How far the quiet passages are lifted toward the loud ones. `0` leaves the dynamics alone. */
+  readonly evenOut: number;
+  /** The make-up gain: the operator's own, because it decides character rather than evenness. */
+  readonly makeupDb: number;
+  /** The spread this was decided from, in LU — the file's quietest fifth against its loudest. */
+  readonly spreadLu: number;
+  readonly levelsDynamics: boolean;
+  readonly reasons: readonly string[];
+}
+
 /** `GET /api/probe` — everything one chosen file can be asked. */
 export interface ProbeView {
   readonly media: MediaView;
@@ -472,6 +492,32 @@ export const api = {
   /** Measure one source. Called when a file is added, for its facts and its level. */
   probe: (path: string) =>
     send<ProbeView>(`/api/probe?path=${encodeURIComponent(path)}`, undefined, "GET"),
+
+  /**
+   * What this file's own measurements suggest.
+   *
+   * The figures travel in the query because the window already has them from `/api/probe`: a route that
+   * measured the file again would decode its whole sound a second time to answer a question the caller could
+   * already answer. `null` when there is nothing to decide from — the engine answers `204`, which is not an
+   * error: nothing went wrong, there was simply nothing to suggest from.
+   */
+  suggest: (measured: {
+    readonly peakDbfs: number | null;
+    readonly integratedLufs: number | null;
+    readonly rangeLu: number | null;
+    readonly loudestLufs: number | null;
+    readonly targetDbfs: number;
+    readonly makeupDb: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (measured.peakDbfs !== null) query.set("peakDbfs", String(measured.peakDbfs));
+    if (measured.integratedLufs !== null) query.set("integratedLufs", String(measured.integratedLufs));
+    if (measured.rangeLu !== null) query.set("rangeLu", String(measured.rangeLu));
+    if (measured.loudestLufs !== null) query.set("loudestLufs", String(measured.loudestLufs));
+    query.set("targetDbfs", String(measured.targetDbfs));
+    query.set("makeupDb", String(measured.makeupDb));
+    return send<{ suggestion: SuggestionView }>(`/api/suggestions?${query}`, undefined, "GET");
+  },
 
   /** What the run will do, without writing anything. Called as the settings settle. */
   plan: (input: NormalizeRequest) => send<PlanAnswer>("/api/normalization-plans", input),

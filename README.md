@@ -190,6 +190,7 @@ or clipping at the declared minimum. It writes `docs/shots/01-empty.png`.
 | File | What is in it |
 |---|---|
 | [`docs/SPEC.md`](docs/SPEC.md) | what the product is required to do, as 28 numbered requirements each with the check that decides it |
+| [`docs/AUTODETECT.md`](docs/AUTODETECT.md) | how the suggested settings are chosen, the measurement behind the rule, and what has not been measured |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | the decisions and the five measurements behind them — read §2 first |
 | [`docs/TRUTH.md`](docs/TRUTH.md) | every claim paired with its check, and an explicit list of what is **not** checked |
 | [`docs/SKILLS-APPLIED.md`](docs/SKILLS-APPLIED.md) | the practices this build was held to, and what each one changed |

@@ -215,6 +215,19 @@
   --hairline: 1px;
   --focus-width: 1px;
 
+  /* ---- Border Radii: subtle, pleasant, modern ------------------------------------------- */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ---- Elevation Shadows ---------------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
   /* ---- Motion: feedback only, and short ------------------------------------------------- */
   --motion-fast: 80ms;
   --motion-base: 120ms;

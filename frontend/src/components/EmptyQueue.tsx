@@ -68,6 +68,14 @@ export function EmptyQueue({ rows, measuring, onAdd, onDropPaths }: Props) {
         onDropPaths(Array.from(event.dataTransfer.files).map((file) => String(file)));
       }}
     >
+      <div className="empty-state__icon" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+      </div>
+
       <button type="button" className="btn btn--primary btn--big empty-state__add" onClick={onAdd}>
         Add files
       </button>
@@ -76,6 +84,15 @@ export function EmptyQueue({ rows, measuring, onAdd, onDropPaths }: Props) {
         Choose them with the operating system's own dialog — several at once, video or audio, a folder's
         worth. The same button is in the title bar, and <strong>F5</strong> starts a run.
       </p>
+
+      <div className="empty-state__tags">
+        <span className="pill">MP4</span>
+        <span className="pill">MKV</span>
+        <span className="pill">MOV</span>
+        <span className="pill">WAV</span>
+        <span className="pill">MP3</span>
+        <span className="pill">FLAC</span>
+      </div>
 
       {note === "" ? null : <p className="empty-state__progress">{note}</p>}
 

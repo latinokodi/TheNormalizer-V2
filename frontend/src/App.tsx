@@ -683,7 +683,83 @@ export function App() {
 
   /* ---- What the operator is looking at --------------------------------------------------- */
 
-  const selectedRow = state.rows.find((row) => row.key === selected) ?? state.rows[0] ?? null;
+  const selectedRow = selected !== null ? (state.rows.find((row) => row.key === selected) ?? null) : null;
+
+  /* ---- The settings, and the one path that applies them ----------------------------------- */
+
+  /**
+   * Apply settings and re-plan the file the operator is looking at.
+   *
+   * **There is one of these on purpose.** A suggestion applies its figures through here exactly as a typed
+   * edit does, so a setting that came from the engine cannot take a different route from one that was typed:
+   * no second code path, and no second place for the plan on screen to disagree with the run that follows it.
+   */
+  const applySettings = useCallback(
+    (next: Settings) => {
+      setSettings(next);
+      // Re-plan one file and not forty: forty is forty decodes, and the engine does that when the run starts.
+      const row = selectedRow;
+      if (row === null || row.media === null) {
+        return;
+      }
+      void api
+        .plan(requestOf([row], next))
+        .then((answer) =>
+          dispatch({ type: "planned", key: row.key, plan: answer.plan, output: answer.plan.output }),
+        )
+        .catch((caught: unknown) =>
+          dispatch({ type: "planFailed", message: failureSentence(caught) }),
+        );
+    },
+    [selectedRow],
+  );
+
+  /* ---- Autodetect ------------------------------------------------------------------------ */
+
+  /**
+   * Ask the engine what this file's own measurements suggest, and apply it.
+   *
+   * The figures travel to the engine rather than being turned into a suggestion here, and that is a decision
+   * about where a rule lives: which spread needs how much evening is measured knowledge — the calibration,
+   * its limits and the reasoning are in `docs/AUTODETECT.md` — and a threshold duplicated in the interface
+   * would be a second place for it to be wrong. The window asks; the engine answers with figures and with
+   * the reasons for them.
+   *
+   * Applying it goes through the same `onChangeApplied` path as a typed edit, so the selected file is
+   * re-planned exactly as if the operator had entered the numbers themselves. There is no second code path
+   * for "settings that came from the engine", which is what stops the two from disagreeing.
+   */
+  const suggestForSelected = useCallback(async () => {
+    const row = selectedRow;
+    if (row === null || row.loudness === null || row.sourceLevels === null) {
+      return;
+    }
+    try {
+      const answer = await api.suggest({
+        peakDbfs: row.sourceLevels.peakDbfs,
+        integratedLufs: row.loudness.integratedLufs,
+        rangeLu: row.loudness.rangeLu,
+        loudestLufs: row.loudness.loudestLufs,
+        targetDbfs: settings.levelDbfs,
+        makeupDb: settings.driveDb,
+      });
+      const suggested = answer.suggestion;
+      applySettings({
+        ...settings,
+        levelDbfs: suggested.levelDbfs,
+        levelingDb: suggested.evenOut,
+        driveDb: suggested.makeupDb,
+      });
+      // The reasons are the point of the feature as much as the figures are: a suggestion applied silently is
+      // three numbers that changed on their own.
+      for (const reason of suggested.reasons) {
+        dispatch({ type: "log", line: { at: clock(0), level: "stage", file: row.name, text: reason } });
+      }
+    } catch (caught: unknown) {
+      dispatch({ type: "notice", message: failureSentence(caught) });
+    }
+  }, [applySettings, selectedRow, settings]);
+
   const counts = tally(state.rows);
   const busy = state.run.kind === "running";
   const canStart = startable.length > 0 && !busy && measuring === 0;
@@ -778,30 +854,11 @@ export function App() {
         <div className="app__col app__col--form">
           <SettingsPanel
             settings={settings}
-            onChangeApplied={(next) => {
-              setSettings(next);
-              // Re-plan the file the operator is looking at, so the level and the cautions on screen are
-              // the ones the next run would use. One request, for one file: forty files is forty decodes,
-              // and the engine does that when the run starts.
-              const row = selectedRow;
-              if (row !== null && row.media !== null) {
-                void api
-                  .plan(requestOf([row], next))
-                  .then((answer) =>
-                    dispatch({
-                      type: "planned",
-                      key: row.key,
-                      plan: answer.plan,
-                      output: answer.plan.output,
-                    }),
-                  )
-                  .catch((caught: unknown) =>
-                    dispatch({ type: "planFailed", message: failureSentence(caught) }),
-                  );
-              }
-            }}
+            onChangeApplied={applySettings}
             health={health}
             busy={busy}
+            canSuggest={selectedRow !== null && selectedRow.loudness !== null && selectedRow.sourceLevels !== null}
+            onSuggest={() => void suggestForSelected()}
           />
 
           <div className="actions">
@@ -841,7 +898,7 @@ export function App() {
           <QueueTable
             rows={state.rows}
             selected={selectedRow?.key ?? null}
-            onSelect={setSelected}
+            onSelect={(key) => setSelected(selected === key ? null : key)}
             onRemove={(key) => dispatch({ type: "removed", keys: [key] })}
             onAdd={() => void browse()}
             onReveal={showInExplorer}
@@ -849,7 +906,7 @@ export function App() {
             measuring={measuring > 0}
             onDropPaths={(paths) => add(paths)}
           />
-          <ReportPanel row={selectedRow} onReveal={showInExplorer} />
+          <ReportPanel row={selectedRow} onReveal={showInExplorer} onClose={() => setSelected(null)} />
         </div>
       </div>
 

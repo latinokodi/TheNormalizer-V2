@@ -29,6 +29,7 @@ import { bytes, signed } from "../lib/format";
 interface Props {
   readonly row: QueueRow | null;
   readonly onReveal: (path: string) => void;
+  readonly onClose?: () => void;
 }
 
 const STATUS_CLASS: Record<string, string> = {
@@ -43,10 +44,10 @@ const STATUS_WORD: Record<string, string> = {
   not_checked: "not checked",
 };
 
-export function ReportPanel({ row, onReveal }: Props) {
+export function ReportPanel({ row, onReveal, onClose }: Props) {
   if (row === null) {
     return (
-      <section className="zone" aria-label="The selected file">
+      <section className="zone zone--report report-panel--empty" aria-label="The selected file">
         <div className="zone__head">
           <h2 className="zone__title">The file</h2>
           <span className="zone__note">nothing selected</span>
@@ -66,12 +67,24 @@ export function ReportPanel({ row, onReveal }: Props) {
   const media = row.media;
 
   return (
-    <section className="zone" aria-label="The selected file">
+    <section className="zone zone--report" aria-label="The selected file">
       <div className="zone__head">
         <h2 className="zone__title">The file</h2>
         <span className="zone__note" title={row.path}>
           {row.name}
         </span>
+        <span className="spacer" />
+        {onClose ? (
+          <button
+            type="button"
+            className="btn btn--ghost btn--small btn--close"
+            onClick={onClose}
+            aria-label="Close inspector"
+            title="Close inspector"
+          >
+            ✕
+          </button>
+        ) : null}
       </div>
 
       <div className="panel-body">

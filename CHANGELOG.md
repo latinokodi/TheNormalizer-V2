@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+### Added — autodetect: the settings a file needs, from the file
+
+- **The engine proposes Level, Even out and Make up for a file, from what was measured about it.** The window
+  offers it as **Suggest**, beside the settings, and applies the answer through the same path a typed edit
+  takes — so a suggestion and an edit cannot produce different runs, and there is no second code path for
+  "settings that came from the engine".
+- **Every figure carries its reason**, in the operator's words, naming the measurement behind it. A
+  recommendation without its reasoning is a number to be taken on trust, and the reasons are also written to
+  the log when a suggestion is applied — three numbers that changed on their own are worse than three numbers
+  that say why.
+- **The rule:** `even_out = spread − 7`, clamped to `[0, 18]`. Seven LU is `loudnorm`'s own default
+  loudness-range target, so it is a figure from the standard rather than one invented here, and it is the same
+  threshold the report uses to call a file *wide*. A file inside it gets **zero** and keeps all of its
+  dynamics; a wider one gets exactly its excess.
+- **The spread is the figure decided on, and it is derived rather than `LRA`** — the quietest fifth of the
+  material against the loudest. Measured: on a 13-minute interview `LRA` said 12.8 LU where the spread said
+  **21.8**; on four sources built with plateaus exactly 6, 12, 18 and 24 LU apart, `LRA` said 1.8, 2.6, 2.9
+  and 3.0 where the spread said **6.0, 12.0, 18.0 and 24.0**. `LRA` gates in 400 ms blocks and takes a range
+  over its own percentiles; the spread answers the question an operator is asking.
+- **`GET /api/suggestions`**, taking the measurements as query fields because the window already has them: a
+  route that measured again would decode the file's whole sound to answer a question the caller could already
+  answer. `204` when there is nothing to decide from — not an error, because nothing went wrong and the caller
+  should offer nothing rather than a default. `400` for a level the engine cannot run, because clamping a
+  delivery requirement would deliver the wrong thing quietly.
+- `docs/AUTODETECT.md` — the specification: what it reads, the rule for each figure, what it refuses, the
+  calibration, and an explicit statement of what has not been measured.
+- `scripts/make_calibration_sources.py` and `scripts/calibrate_leveling.py` — the instruments. The first
+  builds sources whose spread is exact and verified; the second reports what each `Even out` figure closes.
+  **They establish that tones cannot calibrate this filter**, which is recorded rather than hidden: `speechnorm`
+  flattened a 24 LU source to 0.1 LU at every setting including 4.
+- `specs/features/autodetect.feature`, executed by pytest-bdd, plus `backend/tests/test_detect.py` (14 unit
+  tests) and `backend/tests/test_detect_server.py` (11 tests against the real application).
+
+
 ### Changed — the controls are named after the thing they set
 
 - **`Drive` is `Make up`.** It carries the Premiere Track Fx's *make-up gain* — a `volume` fader in front of

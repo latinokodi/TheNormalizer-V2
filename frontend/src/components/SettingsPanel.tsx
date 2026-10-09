@@ -35,6 +35,10 @@ interface Props {
   readonly onChangeApplied: (next: Settings) => void;
   readonly health: Health | null;
   readonly busy: boolean;
+  /** Called when the operator clicks "Suggest" — App computes values from the measured file. */
+  readonly onSuggest?: () => void;
+  /** True when a file with measurements is selected and suggestions can be offered. */
+  readonly canSuggest?: boolean;
 }
 
 /**
@@ -107,7 +111,7 @@ function NumberField({
   );
 }
 
-export function SettingsPanel({ settings, onChangeApplied, health, busy }: Props) {
+export function SettingsPanel({ settings, onChangeApplied, health, busy, onSuggest, canSuggest }: Props) {
   const set = (patch: Partial<Settings>) => {
     onChangeApplied({ ...settings, ...patch });
   };
@@ -116,6 +120,28 @@ export function SettingsPanel({ settings, onChangeApplied, health, busy }: Props
 
   return (
     <section className="zone" aria-label="Settings">
+      <div className="zone__head">
+        <h2 className="zone__title">Settings</h2>
+        <span className="zone__note">Target &amp; Dynamics</span>
+        <span className="spacer" />
+        {onSuggest ? (
+          <button
+            type="button"
+            className="btn btn--ghost btn--small"
+            onClick={onSuggest}
+            disabled={!canSuggest || busy}
+            title={
+              busy
+                ? "Cannot change settings while a run is in progress"
+                : canSuggest
+                  ? "Suggest settings from this file's measurements"
+                  : "Select a measured file to get suggestions"
+            }
+          >
+            Suggest
+          </button>
+        ) : null}
+      </div>
       <div className="zone__body">
         <NumberField
           id="level"
