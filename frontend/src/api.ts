@@ -136,6 +136,10 @@ export interface SuggestionView {
   readonly spreadLu: number;
   readonly levelsDynamics: boolean;
   readonly reasons: readonly string[];
+  /** The true peak this was read from, or `null` when it was not measured. */
+  readonly truePeakDbfs: number | null;
+  /** A sentence about headroom the file will lose, or `null` when there is nothing to say. */
+  readonly headroomNote: string | null;
 }
 
 /** `GET /api/probe` — everything one chosen file can be asked. */
@@ -171,6 +175,14 @@ export interface LoudnessView {
   readonly integratedLufs: number | null;
   readonly rangeLu: number | null;
   readonly loudestLufs: number | null;
+  /**
+   * The true peak in dBFS: the largest level between the samples, which `volumedetect` cannot see.
+   *
+   * An encoder's decoder rings past the samples it was given, so a file whose true peak is above its sample
+   * peak loses that much headroom the moment it is encoded. Reported rather than acted on — nothing in the
+   * window changes a setting because of it.
+   */
+  readonly truePeakDbfs: number | null;
   readonly integratedText: string;
   readonly rangeText: string;
   /** True when the spread is wider than a delivery target allows. */
@@ -506,6 +518,7 @@ export const api = {
     readonly integratedLufs: number | null;
     readonly rangeLu: number | null;
     readonly loudestLufs: number | null;
+    readonly truePeakDbfs: number | null;
     readonly targetDbfs: number;
     readonly makeupDb: number;
   }) => {
@@ -514,6 +527,7 @@ export const api = {
     if (measured.integratedLufs !== null) query.set("integratedLufs", String(measured.integratedLufs));
     if (measured.rangeLu !== null) query.set("rangeLu", String(measured.rangeLu));
     if (measured.loudestLufs !== null) query.set("loudestLufs", String(measured.loudestLufs));
+    if (measured.truePeakDbfs !== null) query.set("truePeakDbfs", String(measured.truePeakDbfs));
     query.set("targetDbfs", String(measured.targetDbfs));
     query.set("makeupDb", String(measured.makeupDb));
     return send<{ suggestion: SuggestionView }>(`/api/suggestions?${query}`, undefined, "GET");

@@ -60,6 +60,17 @@ def very_wide(world):
     world["spread"] = 60.0
 
 
+@given("its true peak sits 2.0 dB above its loudest sample")
+def true_peak_above(world):
+    # Absolute, as `ebur128` reports it: the sample peak is −1.1, so +0.9 is a gap of exactly 2.0 dB.
+    world["measured"]["true_peak_dbfs"] = world["measured"].get("peak_dbfs", -1.1) + 2.0
+
+
+@given("its true peak measures 0.0 dB above its loudest sample")
+def true_peak_level(world):
+    world["measured"]["true_peak_dbfs"] = world["measured"].get("peak_dbfs", -1.1)
+
+
 @given("the operator is delivering at -6.0 dBFS")
 def delivering_at(world):
     world["target"] = -6.0
@@ -175,6 +186,19 @@ def reason_is_missing(world):
     assert world["suggestion"] is None
 
 
+@then("the suggestion says the file will lose that much headroom when it is encoded")
+def headroom_note(world):
+    note = world["suggestion"].headroom_note
+    assert note is not None, "a 2.0 dB true-peak gap produced no note"
+    assert "2.0" in note, note
+    assert "dBFS" in note, note
+
+
+@then("the suggestion carries no note about headroom")
+def no_headroom_note(world):
+    assert world["suggestion"].headroom_note is None, world["suggestion"].headroom_note
+
+
 @then("the leveler is set to its maximum")
 def leveler_capped(world):
     assert world["suggestion"].even_out == detect.MAX_EVEN_OUT
@@ -234,6 +258,16 @@ def test_silence_has_nothing():
 @scenario(FEATURES, "asking for more evening than the tool allows is capped rather than silent")
 def test_cap_is_stated():
     """A cap applied silently is a promise the tool cannot keep."""
+
+
+@scenario(FEATURES, "a file whose true peak is above its sample peak is warned about")
+def test_true_peak_warned():
+    """Headroom a lossy encode takes back, said out loud and not silently adjusted for."""
+
+
+@scenario(FEATURES, "a file whose true peak agrees with its sample peak is not warned about")
+def test_true_peak_quiet():
+    """A note on every file is a note nobody reads."""
 
 
 @scenario(FEATURES, "the same file always gets the same answer")

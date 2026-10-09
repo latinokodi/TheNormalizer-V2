@@ -318,7 +318,7 @@ def _loudness_json(loudness: "process_module.Loudness | None") -> dict[str, Any]
     """
     if loudness is None:
         return {
-            "integratedLufs": None, "rangeLu": None, "loudestLufs": None,
+            "integratedLufs": None, "rangeLu": None, "loudestLufs": None, "truePeakDbfs": None,
             "integratedText": "not measured", "rangeText": "not measured",
             "isWide": False, "wideNote": None,
         }
@@ -333,6 +333,12 @@ def _loudness_json(loudness: "process_module.Loudness | None") -> dict[str, Any]
         "integratedLufs": loudness.integrated_lufs,
         "rangeLu": loudness.range_lu,
         "loudestLufs": loudness.loudest_lufs,
+        # The true peak, which `volumedetect` cannot produce: the largest level between the samples. Shown
+        # beside the sample peak because they agree on ordinary material and diverge on anything that has been
+        # through a lossy codec — which is exactly when a peak requirement is at risk. It travels back to the
+        # suggestions route with the other figures, so the note it produces is about a measurement the window
+        # already holds rather than a second one of its own.
+        "truePeakDbfs": loudness.true_peak_dbfs,
         "integratedText": (
             "silence" if loudness.integrated_lufs is None else f"{loudness.integrated_lufs:.1f} LUFS"
         ),
@@ -763,6 +769,13 @@ async def suggestions(request: web.Request) -> web.Response:
     request was wrong*, which is the difference between a caller that should offer nothing and a caller that
     should show an error.
 
+    ## Why the true peak travels in as well
+
+    `ebur128` reports it in the same pass that reports the loudness, and it is the one figure `volumedetect`
+    cannot produce. It does not choose anything: it comes back as a note when it sits a decibel or more above
+    the sample peak, because that is headroom a lossy encode takes back. An operator whose deliverable has a
+    peak requirement needs to know that before the run rather than after it.
+
     ## Why a level outside the range is a `400` and not a clamp
 
     The level is a delivery requirement. Clamping one would deliver the wrong thing quietly, which is worse
@@ -774,6 +787,7 @@ async def suggestions(request: web.Request) -> web.Response:
     try:
         measured = detect.Measurements(
             peak_dbfs=_optional_number(request.query.get("peakDbfs"), "peakDbfs"),
+            true_peak_dbfs=_optional_number(request.query.get("truePeakDbfs"), "truePeakDbfs"),
             integrated_lufs=_optional_number(request.query.get("integratedLufs"), "integratedLufs"),
             range_lu=_optional_number(request.query.get("rangeLu"), "rangeLu"),
             loudest_lufs=_optional_number(request.query.get("loudestLufs"), "loudestLufs"),
@@ -820,6 +834,10 @@ def _suggestion_json(suggestion: "detect.Suggestion") -> dict[str, Any]:
         "spreadLu": suggestion.spread_lu,
         "levelsDynamics": suggestion.levels_dynamics,
         "reasons": list(suggestion.reasons),
+        # The true peak and the sentence it produced. `headroomNote` is separate from `reasons` because it is
+        # not a reason for a figure: it is a fact about the file that no setting here changes.
+        "truePeakDbfs": suggestion.true_peak_dbfs,
+        "headroomNote": suggestion.headroom_note,
     }
 
 

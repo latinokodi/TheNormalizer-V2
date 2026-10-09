@@ -114,6 +114,14 @@ export function ReportPanel({ row, onReveal, onClose }: Props) {
           <dd className={row.loudness?.isWide === true ? "caution" : undefined}>
             {row.loudness?.rangeText ?? "—"}
           </dd>
+          {/*
+            The true peak, beside the sample peak it is not. They agree on ordinary material and diverge on
+            anything that has been through a lossy codec, which is exactly when a peak requirement is at
+            risk — see docs/AUTODETECT.md 2.3. Shown as a figure rather than as a warning: the warning is the
+            engine's, and it arrives with a suggestion.
+          */}
+          <dt>True peak</dt>
+          <dd>{row.loudness?.truePeakDbfs == null ? "—" : `${row.loudness.truePeakDbfs.toFixed(2)} dBFS`}</dd>
           <dt>Size</dt>
           <dd>{media === null ? "—" : bytes(media.sizeBytes)}</dd>
         </dl>

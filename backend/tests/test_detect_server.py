@@ -166,3 +166,68 @@ def test_the_engine_reports_the_suggestion_route_in_its_index(engine):
     status, payload = call(engine, "/api")
     assert status == 200
     assert "suggestions" in payload["routes"]
+
+
+# ---------------------------------------------------------------------------------------
+# The true peak, which travels in and is reported out
+# ---------------------------------------------------------------------------------------
+
+
+def test_the_true_peak_is_read_from_the_request_and_reported(engine):
+    """`truePeakDbfs` in, `truePeakDbfs` and a `headroomNote` out.
+
+    The figure is `ebur128`'s own and the window already holds it from `/api/probe`, so it travels the same way
+    the peak and the loudness do — and it comes back with the note it produced rather than being folded into a
+    figure, because no setting here can change it.
+    """
+    status, payload = call(
+        engine,
+        "/api/suggestions?peakDbfs=-1.1&truePeakDbfs=0.9&integratedLufs=-23.4&rangeLu=12.8&spreadLu=21.8",
+    )
+    assert status == 200
+    suggestion = payload["suggestion"]
+    assert suggestion["truePeakDbfs"] == pytest.approx(0.9)
+    assert suggestion["headroomNote"] is not None
+    assert "2.0" in suggestion["headroomNote"], suggestion["headroomNote"]
+
+
+def test_a_true_peak_that_agrees_with_the_sample_peak_produces_no_note(engine):
+    """Measured on ordinary material the two agree, and a note on every file is a note nobody reads."""
+    status, payload = call(
+        engine,
+        "/api/suggestions?peakDbfs=-1.1&truePeakDbfs=-1.1&integratedLufs=-23.4&rangeLu=12.8&spreadLu=21.8",
+    )
+    assert status == 200
+    assert payload["suggestion"]["headroomNote"] is None
+
+
+def test_a_true_peak_that_was_not_measured_is_absent_and_not_zero(engine):
+    """A figure that was not taken is `null`, which is the honest form of it. Zero would be a level."""
+    status, payload = call(
+        engine, "/api/suggestions?peakDbfs=-1.1&integratedLufs=-23.4&rangeLu=12.8&spreadLu=21.8"
+    )
+    assert status == 200
+    assert payload["suggestion"]["truePeakDbfs"] is None
+    assert payload["suggestion"]["headroomNote"] is None
+
+
+def test_the_true_peak_does_not_change_the_figures_the_engine_will_run(engine):
+    """It is a report: the same file with and without one is given the same settings."""
+    without = call(
+        engine, "/api/suggestions?peakDbfs=-1.1&integratedLufs=-23.4&rangeLu=12.8&spreadLu=21.8"
+    )[1]["suggestion"]
+    with_peak = call(
+        engine,
+        "/api/suggestions?peakDbfs=-1.1&truePeakDbfs=2.0&integratedLufs=-23.4&rangeLu=12.8&spreadLu=21.8",
+    )[1]["suggestion"]
+    for figure in ("levelDbfs", "evenOut", "makeupDb"):
+        assert without[figure] == with_peak[figure], figure
+
+
+def test_a_true_peak_that_is_not_a_number_is_refused(engine):
+    status, payload = call(
+        engine,
+        "/api/suggestions?peakDbfs=-1.1&truePeakDbfs=loud&integratedLufs=-23.4&rangeLu=12.8",
+    )
+    assert status == 400
+    assert "truePeakDbfs" in payload["error"]

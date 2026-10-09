@@ -279,6 +279,12 @@ class Loudness:
     range_lu: float | None
     #: The loudest momentary figure, from the same pass. Not a true peak; a peak is ``Levels.max_dbfs``.
     loudest_lufs: float | None
+    #: The **true peak** in dBFS: the largest level the waveform reaches *between* its samples, estimated by
+    #: oversampling. `volumedetect` cannot see it at all, and it matters because an encoder's decoder rings
+    #: past the samples it was given — a file whose true peak is above its sample peak loses that much
+    #: headroom the moment it is encoded. Read because this product's promise is a peak at the target, and
+    #: **reported rather than acted on**: it is not a control, it is a warning. See `detect.Measurements`.
+    true_peak_dbfs: float | None = None
 
     @property
     def has_signal(self) -> bool:
@@ -351,12 +357,15 @@ def measure_loudness(path: Path, timeout: float = 1800.0) -> Loudness:
     """
     args = [
         tool("ffmpeg"), "-hide_banner", "-nostats", "-vn", "-i", str(path),
-        "-af", "ebur128=peak=none", "-f", "null", "-",
+        # `peak=true` makes `ebur128` oversample and estimate the true peak as well, for the same decode: the
+        # filter is already reading every sample and the oversampling is arithmetic on top of it.
+        "-af", "ebur128=peak=true", "-f", "null", "-",
     ]
     _, _, err = capture(args, timeout=timeout)
 
     integrated: float | None = None
     spread: float | None = None
+    true_peak: float | None = None
     summary = err.rfind("Integrated loudness")
     if summary >= 0:
         tail = err[summary:]
@@ -366,6 +375,12 @@ def measure_loudness(path: Path, timeout: float = 1800.0) -> Loudness:
         found = re.search(r"LRA:\s*(-?[\d.]+)\s*LU", tail)
         if found:
             spread = float(found.group(1))
+        # Its own block after the loudness range, and anchored to the summary rather than searched over the
+        # whole report: `Peak:` appears in the momentary status lines too, and the first match there would be
+        # a moment rather than the file's true peak.
+        found = re.search(r"True peak:\s*\n\s*Peak:\s*(-?[\d.]+|-inf)\s*dBFS", tail)
+        if found:
+            true_peak = _dbfs(found.group(1))
 
     moments = [
         _dbfs(value)
@@ -376,6 +391,7 @@ def measure_loudness(path: Path, timeout: float = 1800.0) -> Loudness:
         integrated_lufs=integrated,
         range_lu=spread,
         loudest_lufs=max(present) if present else None,
+        true_peak_dbfs=true_peak,
     )
 
 

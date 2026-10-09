@@ -19,6 +19,7 @@ it is asked about, which is what makes it testable without ffmpeg and cheap to o
 | `integrated_lufs` | `ebur128` | how loud the file sounds overall |
 | `range_lu` | `ebur128` | `LRA`: the metered spread between the loud and quiet parts |
 | `loudest_lufs` | `ebur128`, momentary | the loudest moment, for a sanity note |
+| **`true_peak_dbfs`** | **`ebur128=peak=true`** | the largest inter-sample peak, which is what a file loses headroom to after a lossy encode |
 | **`spread_lu`** | **derived: quietest fifth against loudest fifth** | the figure the detector actually decides on |
 
 **`spread_lu` is derived rather than taken from `LRA`, and that is a measurement and not a preference.** On a
@@ -59,7 +60,21 @@ with `DELIVERY_SPREAD_LU = 7.0` and `MAX_EVEN_OUT = 18.0`.
   a 21.8 LU file; 18 is that figure plus room for material worse than anything measured, and it stops short of
   the regime where the filter is squashing tone-like material into a flat line (§4).
 
-### 2.3 `Make up` — left where the operator has it
+### 2.3 The true peak — read, and reported rather than decided on
+
+`ebur128` is asked for `peak=true`, which makes it oversample and estimate the **true peak**: the largest level
+the waveform reaches *between* its samples. `volumedetect` cannot see that at all, and it matters because an
+encoder's decoder rings past the samples it was given.
+
+It is measured because the objective names it, and it is **not** used to choose a figure. What it does is
+produce a **note** when it sits a decibel or more above the sample peak, because that is a file which will lose
+that much headroom the moment it is encoded — and a normalizer's whole promise is a peak at the target.
+
+Measured on the calibration material: a source at −18.1 dBFS sample peak had a true peak of **−18.1 dBFS**, no
+gap at all, so on ordinary material the two agree. On material that has already been through a lossy codec the
+gap is ordinary and is worth saying out loud.
+
+### 2.4 `Make up` — left where the operator has it
 
 `DEFAULT_MAKEUP_DB`, unchanged. Make up decides how hard the limiter is hit and therefore how squashed the
 peaks come out — a question about character — and the leveler has already decided how even the file is. The
@@ -113,6 +128,7 @@ the only things that would change.
 | no level measured (digital silence) | no suggestion: a file with no sound has no spread to even |
 | a spread inside the target | an `Even out` of **0**, with the reason saying the file is already even |
 | `Even out` above the maximum | capped, with the cap in the reason rather than silent |
+| a true peak a decibel or more above the sample peak | the figures are unchanged, and a **note** says the file will lose that much headroom when it is encoded |
 | a request for a level outside the engine's range | refused by the same rules the plan uses, not a second set |
 
 ## 6. How it is verified

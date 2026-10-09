@@ -740,6 +740,7 @@ export function App() {
         integratedLufs: row.loudness.integratedLufs,
         rangeLu: row.loudness.rangeLu,
         loudestLufs: row.loudness.loudestLufs,
+        truePeakDbfs: row.loudness.truePeakDbfs,
         targetDbfs: settings.levelDbfs,
         makeupDb: settings.driveDb,
       });
@@ -751,8 +752,10 @@ export function App() {
         driveDb: suggested.makeupDb,
       });
       // The reasons are the point of the feature as much as the figures are: a suggestion applied silently is
-      // three numbers that changed on their own.
-      for (const reason of suggested.reasons) {
+      // three numbers that changed on their own. The headroom note goes with them rather than being folded
+      // into one of them — it is not a reason for a figure, it is a fact about the file that no setting here
+      // changes, and an operator delivering to a peak requirement needs it before the run.
+      for (const reason of [...suggested.reasons, ...(suggested.headroomNote ? [suggested.headroomNote] : [])]) {
         dispatch({ type: "log", line: { at: clock(0), level: "stage", file: row.name, text: reason } });
       }
     } catch (caught: unknown) {

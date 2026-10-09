@@ -99,11 +99,21 @@ def main() -> int:
             f"the engine reports {loudness['rangeText']} for a file {spread_asked:g} dB apart "
             f"(the metered range is not the plateau distance — see docs/AUTODETECT.md §4)",
         )
+        # The objective names the true peak as an input, so it is read and reported here rather than assumed.
+        # A 220 Hz sine has no inter-sample peak worth the name, which is itself the finding: the two figures
+        # agree on material like this, and that is why the true peak produces a note rather than a figure.
+        true_peak = loudness.get("truePeakDbfs")
+        check(
+            "the engine read the true peak as well as the sample peak",
+            true_peak is not None,
+            f"sample {probe['levels']['peakText']}, true {true_peak} dBFS",
+        )
 
         query = urllib.parse.urlencode({
             "peakDbfs": probe["levels"]["peakDbfs"],
             "integratedLufs": loudness["integratedLufs"],
             "rangeLu": loudness["rangeLu"],
+            "truePeakDbfs": true_peak,
             "targetDbfs": -6.0,
             "makeupDb": 12.0,
         })
@@ -123,10 +133,46 @@ def main() -> int:
             f"{len(suggestion['reasons'])} reasons",
         )
         check(
+            "the true peak came back with the suggestion",
+            suggestion.get("truePeakDbfs") == true_peak,
+            f"true peak {suggestion.get('truePeakDbfs')} dBFS, "
+            f"headroom note {suggestion.get('headroomNote') or 'none'}",
+        )
+        check(
             "the suggestion is inside what this product can run",
             -24.0 <= suggestion["levelDbfs"] <= 0.0 and 0.0 <= suggestion["evenOut"] <= 18.0,
             f"level {suggestion['levelDbfs']}, even out {suggestion['evenOut']}",
         )
+
+        # The note, exercised on a **gap that was supplied** rather than measured. A 220 Hz sine has no
+        # inter-sample peak, so every figure this script builds has a gap of zero and the note never fires.
+        # Asking the route for a file 2 dB above its sample peak is the only way to see the warning path
+        # without footage that has been through a lossy codec — and it is the same route, so what is checked
+        # is the real behaviour rather than a second implementation of it.
+        gap_query = urllib.parse.urlencode({
+            "peakDbfs": probe["levels"]["peakDbfs"],
+            "truePeakDbfs": (probe["levels"]["peakDbfs"] or 0.0) + 2.0,
+            "integratedLufs": loudness["integratedLufs"],
+            "rangeLu": loudness["rangeLu"],
+            "targetDbfs": -6.0,
+            "makeupDb": 12.0,
+        })
+        status, gapped = get("/api/suggestions?" + gap_query)
+        check("a file with a true-peak gap is answered", status == 200, f"HTTP {status}")
+        if status == 200:
+            noted = gapped["suggestion"]
+            check(
+                "and it is warned about the headroom it will lose",
+                isinstance(noted.get("headroomNote"), str) and "2.0" in noted["headroomNote"],
+                noted.get("headroomNote") or "no note",
+            )
+            check(
+                "and the three figures are unchanged by it",
+                noted["levelDbfs"] == suggestion["levelDbfs"]
+                and noted["evenOut"] == suggestion["evenOut"]
+                and noted["makeupDb"] == suggestion["makeupDb"],
+                "the true peak is a report: it changes no figure",
+            )
 
         # The suggestion, run through the engine and measured at the far end.
         body = {

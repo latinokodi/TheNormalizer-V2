@@ -115,6 +115,7 @@ try:
   query.set("integratedLufs", "-19.2");
   query.set("rangeLu", "9.9");
   query.set("loudestLufs", "-11.0");
+  query.set("truePeakDbfs", "-4.2");
   query.set("targetDbfs", "-6");
   query.set("makeupDb", "12");
   return `/api/suggestions?${query}`;

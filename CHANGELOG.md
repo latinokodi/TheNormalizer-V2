@@ -21,6 +21,13 @@
   **21.8**; on four sources built with plateaus exactly 6, 12, 18 and 24 LU apart, `LRA` said 1.8, 2.6, 2.9
   and 3.0 where the spread said **6.0, 12.0, 18.0 and 24.0**. `LRA` gates in 400 ms blocks and takes a range
   over its own percentiles; the spread answers the question an operator is asking.
+- **The true peak is read, reported, and acted on by nothing.** `ebur128` is asked for `peak=true`, which makes
+  it oversample — the one figure `volumedetect` cannot produce, and the one a lossy encode takes back, so a file
+  whose true peak sits a decibel or more above its sample peak gets a sentence saying what it will lose. It
+  chooses no setting, and the tests assert exactly that: the three figures are identical with and without it.
+  Measured on ordinary material the two agree completely — a 220 Hz source at −28.10 dBFS sample peak had a true
+  peak of −28.1 — which is *why* it is a note rather than a correction. The probe reports it, the report shows
+  it beside the sample peak, and a suggestion carries it back with the note it produced.
 - **`GET /api/suggestions`**, taking the measurements as query fields because the window already has them: a
   route that measured again would decode the file's whole sound to answer a question the caller could already
   answer. `204` when there is nothing to decide from — not an error, because nothing went wrong and the caller

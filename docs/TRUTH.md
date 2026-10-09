@@ -236,6 +236,9 @@ The detector is a **pure function over five numbers**, so nearly all of it is de
 | the route, its refusals and its `204` | 11 tests in `test_detect_server.py`, against the real application |
 | the button, and the request it builds | `scripts/check_suggest.py`, in a real browser |
 | the figures reaching a plan | `test_detect_server.py::test_what_the_detector_suggests_is_what_the_engine_will_run`, which turns a suggestion into a request and asserts the plan that comes back |
+| the true peak is **read**, not assumed | `scripts/check_autodetect.py` asserts the probe reports it, and that it comes back with the suggestion |
+| the true peak changes no figure | `test_detect.py::test_the_true_peak_does_not_change_any_of_the_three_figures` and the same claim against the route |
+| the headroom note | 2 BDD scenarios, 3 unit tests, 3 route tests, and `check_autodetect.py` on a gap that was supplied rather than measured |
 
 **And the one thing that is not checked: a click on the button with a real file loaded.** The browser check
 confirms the button exists, is visible, is disabled with nothing selected, and carries the sentence explaining
@@ -243,6 +246,12 @@ why; it also confirms that the URL the page builds for a set of measurements is 
 no check does is press it with a row whose measurements came from a real decode, because the DevTools protocol
 cannot hand this page a file. That path is a callback, a `fetch` and a state update, and it is the one part of
 the feature to try by hand.
+
+**And the true peak is a figure nothing in this program acts on.** It is measured, reported, and it produces
+one sentence when it sits a decibel or more above the sample peak. It chooses no setting, and the tests assert
+that: the three figures are identical with and without it. Read for the reason `docs/AUTODETECT.md` §2.3 gives —
+a lossy encode takes that headroom back, and an operator delivering to a peak requirement needs to know before
+the run rather than after it.
 
 **The calibration is one measurement deep**, and `docs/AUTODETECT.md` §4 says so at length: the relationship
 between a file's spread and the evening it needs is known at exactly one point — a 13-minute interview that

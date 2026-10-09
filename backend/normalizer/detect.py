@@ -35,6 +35,18 @@ from dataclasses import dataclass, field
 #: *wide*, so the report and the detector agree about which files need evening.
 DELIVERY_SPREAD_LU = 7.0
 
+#: The gap between a file's true peak and its sample peak at which it is worth saying something, in dB.
+#:
+#: **One decibel**, and it is a reporting threshold rather than a control. A normalizer's promise is a peak at
+#: the target, and an encoder's decoder rings past the samples it was given — so a file whose true peak sits a
+#: decibel or more above its sample peak will lose that much of it back the moment it is encoded. Below a
+#: decibel the two agree as closely as the measurement's own resolution, and a note on every file is a note
+#: nobody reads.
+#:
+#: Measured on the calibration material: a source at −18.1 dBFS sample peak had a true peak of **−18.1 dBFS**,
+#: no gap at all. On a file that has already been through a lossy codec the gap is ordinary.
+TRUE_PEAK_NOTE_DB = 1.0
+
 #: The most evening the detector will ask for, against `speechnorm`'s own ceiling of 30.
 #:
 #: At the one measured point, 12 was enough for a 21.8 LU file — it came out 7.5 LU wide, inside the target.
@@ -66,6 +78,13 @@ class Measurements:
     integrated_lufs: float | None
     #: `ebur128`'s loudness range, kept for the report and **not** used to decide anything — see `spread_lu`.
     range_lu: float | None
+    #: The **true peak** in dBFS — the largest level between the samples, from `ebur128=peak=true`.
+    #:
+    #: Read because this is a figure `volumedetect` cannot produce and a lossy encode acts on, and it is
+    #: **not** used to choose a figure: it produces a note when it sits a decibel or more above the sample
+    #: peak, because that is headroom the file will lose. `None` when it was not measured, which is the honest
+    #: form of a figure that is absent.
+    true_peak_dbfs: float | None = None
     #: The loudest momentary figure, in LUFS.
     loudest_lufs: float | None = None
     #: `volumedetect`'s mean, in dBFS.
@@ -88,6 +107,13 @@ class Suggestion:
     spread_lu: float
     #: One line per figure, in the operator's words, naming the measurement behind it.
     reasons: tuple[str, ...] = field(default_factory=tuple)
+    #: The true peak this was read from, or `None` when it was not measured.
+    true_peak_dbfs: float | None = None
+    #: A sentence about headroom the file will lose, or `None` when there is nothing to say.
+    #:
+    #: Separate from `reasons` because it is not a reason for a figure: it is a fact about the file that no
+    #: setting here changes.
+    headroom_note: str | None = None
 
     @property
     def levels_dynamics(self) -> bool:
@@ -209,10 +235,25 @@ def suggest(
         f"peaks come out, not how even the file is"
     )
 
+    # The true peak is a **report and not a control**: nothing above this line reads it, and the three figures
+    # are the same whether it was measured or not. What it produces is a sentence about headroom the file will
+    # lose, which no setting here can prevent — an encoder's decoder rings after every gain in the chain.
+    headroom_note = None
+    if measured.true_peak_dbfs is not None and measured.peak_dbfs is not None:
+        gap = measured.true_peak_dbfs - measured.peak_dbfs
+        if gap >= TRUE_PEAK_NOTE_DB:
+            headroom_note = (
+                f"this file's true peak is {measured.true_peak_dbfs:.1f} dBFS, which is {gap:.1f} dB above its "
+                f"loudest sample — an encoder's decoder rings past the samples it is given, so expect it to "
+                f"land around {level + gap:.1f} dBFS rather than {level:.1f} after this run"
+            )
+
     return Suggestion(
         level_dbfs=level,
         even_out=even_out,
         makeup_dbfs=makeup,
         spread_lu=decided_spread,
         reasons=tuple(reasons),
+        true_peak_dbfs=measured.true_peak_dbfs,
+        headroom_note=headroom_note,
     )

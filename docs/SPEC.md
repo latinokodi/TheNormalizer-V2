@@ -275,11 +275,14 @@ clamped. Measured on a 13-minute interview, the quietest fifth moved +3.7 dB aga
 interview's gap is closed by **14.2 dB** with it and 2.6 dB without.
 
 **R26c — The window can propose the settings for the file it is looking at.**
-**Autodetect**: the engine reads the measurements it already took — peak, integrated loudness, loudness range —
-and proposes **Level**, **Even out** and **Make up** for that file, each with the reason it was chosen. The
+**Autodetect**: the engine reads the measurements it already took — **sample peak, true peak, integrated
+loudness, loudness range and the spread derived from them** — and proposes **Level**, **Even out** and
+**Make up** for that file, each with the reason it was chosen. The true peak is read and **reported rather than
+acted on**: it changes no figure, and it produces a sentence when it sits a decibel or more above the sample
+peak, because a lossy encode takes that headroom back. The
 window offers it as **Suggest** and applies the answer through the same path a typed edit takes, so a
-suggestion and an edit cannot produce different runs. *Check:* `test_detect.py` (14 unit tests, no ffmpeg),
-`test_detect_bdd.py` (9 scenarios from `specs/features/autodetect.feature`), `test_detect_server.py` (11 tests
+suggestion and an edit cannot produce different runs. *Check:* `test_detect.py` (18 unit tests, no ffmpeg),
+`test_detect_bdd.py` (11 scenarios from `specs/features/autodetect.feature`), `test_detect_server.py` (17 tests
 against the real app), and `scripts/check_suggest.py` in a real browser. *Design:* `docs/AUTODETECT.md`.
 
 **R27 — The level and the limiter are one number.**

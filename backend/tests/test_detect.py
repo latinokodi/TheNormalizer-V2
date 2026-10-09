@@ -22,6 +22,7 @@ def measured(**overrides) -> detect.Measurements:
     """A file like the 13-minute interview the calibration was taken on, unless a test says otherwise."""
     fields = {
         "peak_dbfs": -1.1,
+        "true_peak_dbfs": -1.1,
         "integrated_lufs": -23.4,
         "range_lu": 12.8,
         "loudest_lufs": -11.4,
@@ -159,3 +160,49 @@ def test_a_level_outside_what_the_engine_can_run_is_refused_rather_than_clamped(
     """Clamping a delivery requirement would deliver the wrong thing quietly, which is worse than saying no."""
     with pytest.raises(ValueError):
         detect.suggest(measured(), target_dbfs=3.0)
+
+
+# ---------------------------------------------------------------------------------------
+# The true peak, which is read and reported but does not choose a figure
+# ---------------------------------------------------------------------------------------
+
+
+def test_a_true_peak_above_the_sample_peak_is_said_out_loud():
+    """An encoder's decoder rings past the samples it was given, and that is lost headroom.
+
+    The figures are unchanged — the true peak is not a control — and the file is *told about* rather than
+    silently adjusted. Measured on ordinary material the two agree to 0.03 dB; on a file that has already been
+    through a lossy codec the gap is ordinary.
+    """
+    # The sample peak defaults to −1.1, so a true peak of +0.9 is a gap of exactly 2.0 dB.
+    suggestion = detect.suggest(measured(true_peak_dbfs=0.9))
+    assert suggestion is not None
+    assert suggestion.true_peak_dbfs == pytest.approx(0.9)
+    assert suggestion.headroom_note is not None
+    assert "2.0" in suggestion.headroom_note, suggestion.headroom_note
+
+
+def test_a_true_peak_that_agrees_with_the_sample_peak_says_nothing():
+    """A note on every file is a note nobody reads. Measured: a source at −18.1 dBFS sample peak had a true
+    peak of −18.1, so on this material there is nothing to say."""
+    suggestion = detect.suggest(measured(true_peak_dbfs=-1.1))
+    assert suggestion is not None
+    assert suggestion.headroom_note is None
+
+
+def test_a_file_with_no_true_peak_measured_is_not_invented_one():
+    """`None` is the honest form of "not measured", and a note cannot be written about a figure that is absent."""
+    suggestion = detect.suggest(measured(true_peak_dbfs=None))
+    assert suggestion is not None
+    assert suggestion.true_peak_dbfs is None
+    assert suggestion.headroom_note is None
+
+
+def test_the_true_peak_does_not_change_any_of_the_three_figures():
+    """It is a report, not a control: the same file with and without one gets the same settings."""
+    without = detect.suggest(measured())
+    with_peak = detect.suggest(measured(true_peak_dbfs=2.0))
+    assert without is not None and with_peak is not None
+    assert without.level_dbfs == with_peak.level_dbfs
+    assert without.even_out == with_peak.even_out
+    assert without.makeup_dbfs == with_peak.makeup_dbfs

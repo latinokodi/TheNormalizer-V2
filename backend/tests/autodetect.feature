@@ -57,6 +57,16 @@ Feature: Suggest the settings for this file
     Then the leveler is set to its maximum
     And the reason says the file is wider than the tool can close
 
+  Scenario: a file whose true peak is above its sample peak is warned about
+    Given its true peak sits 2.0 dB above its loudest sample
+    When the settings are suggested
+    Then the suggestion says the file will lose that much headroom when it is encoded
+
+  Scenario: a file whose true peak agrees with its sample peak is not warned about
+    Given its true peak measures 0.0 dB above its loudest sample
+    When the settings are suggested
+    Then the suggestion carries no note about headroom
+
   Scenario: the same file always gets the same answer
     When the settings are suggested twice
     Then the same file gets the same answer, because a suggestion that moves on its own is one nobody can check
